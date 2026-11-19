@@ -21,7 +21,6 @@ class Channel(
 ) {
     val label: String
         get() = when (status) {
-            "geo" -> "  (VPN?)"
             "kept" -> "  ⟲"
             else -> ""
         }
@@ -64,23 +63,25 @@ class Channel(
     }
 }
 
+data class Prog(val start: Long, val stop: Long, val title: String)
+
 object Groups {
+    const val FAV = "❤️ 我的最愛 Favorites"
     const val MUST = "⭐ 台灣無線台 Taiwan Free-to-Air"
     const val TW = "🇹🇼 台灣 Taiwan"
     const val MY = "📌 我的清單 My playlists"
     const val RUGBY = "🏉 橄欖球 Rugby"
     const val SPORT = "⚽ 體育 Sports"
-    const val UNSURE = "❓ 語言未確認 Language unconfirmed"
 
-    private val fixed = listOf(MUST, TW, MY, RUGBY, SPORT)
+    /** English channels are kept only from these countries, in this order. */
+    val ENGLISH = linkedMapOf(
+        "za" to "🇿🇦 South Africa", "uk" to "🇬🇧 United Kingdom", "us" to "🇺🇸 United States",
+        "au" to "🇦🇺 Australia", "nz" to "🇳🇿 New Zealand", "kr" to "🇰🇷 Korea", "jp" to "🇯🇵 Japan",
+    )
 
-    /** Sort order: fixed groups first, English countries next, unconfirmed last. */
-    fun order(g: String): Pair<Int, String> = when {
-        g in fixed -> fixed.indexOf(g) to ""
-        g == UNSURE -> 99 to ""
-        g.contains("United States") -> 10 to g
-        g.contains("United Kingdom") -> 11 to g
-        g.contains("South Africa") -> 12 to g
-        else -> 20 to g
-    }
+    fun english(cc: String) = "🌐 English – " + ENGLISH.getValue(cc)
+
+    private val fixed = listOf(FAV, MUST, TW, MY, RUGBY, SPORT) + ENGLISH.keys.map { english(it) }
+
+    fun order(g: String): Int = fixed.indexOf(g).let { if (it < 0) 99 else it }
 }

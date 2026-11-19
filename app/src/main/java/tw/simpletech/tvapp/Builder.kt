@@ -1,6 +1,5 @@
 package tw.simpletech.tvapp
 
-import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -89,21 +88,8 @@ object Builder {
     private val SKIP = listOf("religious", "shop", "xxx")
 
     private fun base(id: String) = id.substringBefore('@')
-    private fun country(id: String) = base(id).substringAfterLast('.', "").lowercase()
+    fun country(id: String) = base(id).substringAfterLast('.', "").lowercase()
     private fun skip(e: M3u.Entry) = SKIP.any { e.cats.contains(it, true) }
-
-    private fun flag(cc: String): String {
-        val c = if (cc == "uk") "GB" else cc.uppercase()
-        if (c.length != 2 || !c.all { it in 'A'..'Z' }) return "🌐"
-        return String(Character.toChars(0x1F1E6 + (c[0] - 'A'))) +
-            String(Character.toChars(0x1F1E6 + (c[1] - 'A')))
-    }
-
-    private fun countryName(cc: String): String {
-        if (cc.isEmpty()) return "Other"
-        val c = if (cc == "uk") "GB" else cc.uppercase()
-        return Locale("", c).getDisplayCountry(Locale.ENGLISH).ifEmpty { c }
-    }
 
     private fun load(path: String): List<M3u.Entry> =
         try { M3u.parse(Net.getText("$BASE/$path")) } catch (e: Exception) { emptyList() }
@@ -124,8 +110,9 @@ object Builder {
             if (ch.streams.none { it.url == e.stream.url }) ch.streams.add(e.stream)
             if (ch.logo.isEmpty()) ch.logo = e.logo
         }
+        fun rugby(e: M3u.Entry) = e.name.contains("rugby", true)
 
-        // 1. Taiwan
+        // 1. Taiwan (all; "Taiwan only" links are fine because the check runs in Taiwan)
         for (e in tw) {
             if (skip(e)) continue
             val must = MUST.firstOrNull { m -> m.second.containsMatchIn(e.name) }
@@ -136,24 +123,23 @@ object Builder {
             val list = try { M3u.parse(Net.getText(url)) } catch (e: Exception) { emptyList() }
             for (e in list) add(e, Groups.MY, keyPrefix = "my:")
         }
-        // 3. Sports (rugby first)
+        // 3. Rugby + sports in English or Chinese. Links marked geo-blocked need a VPN -> skipped.
         for (e in sports) {
-            if (skip(e) || country(e.id) == "tw") continue
+            if (skip(e) || e.stream.geo || country(e.id) == "tw") continue
             val b = base(e.id)
-            val group = when {
-                e.name.contains("rugby", true) -> Groups.RUGBY
-                b in engIds || b in zhoIds -> Groups.SPORT
-                else -> Groups.UNSURE
+            when {
+                rugby(e) -> add(e, Groups.RUGBY)
+                b in engIds || b in zhoIds -> add(e, Groups.SPORT)
             }
-            add(e, group)
         }
-        // 4. English channels, by country
+        // 4. English channels from your chosen countries only
         for (e in eng) {
-            if (skip(e) || country(e.id) == "tw") continue
+            if (skip(e) || e.stream.geo) continue
             val cc = country(e.id)
-            val group = if (e.name.contains("rugby", true)) Groups.RUGBY
-                        else "🌐 English – ${flag(cc)} ${countryName(cc)}"
-            add(e, group)
+            when {
+                rugby(e) -> add(e, Groups.RUGBY)
+                cc in Groups.ENGLISH -> add(e, Groups.english(cc))
+            }
         }
         return map.values.toMutableList()
     }
@@ -161,7 +147,7 @@ object Builder {
 
 /** Tests every channel's links and keeps the best working one first. */
 object Checker {
-    private const val KEEP_DAYS = 30L
+    private const val KEEP_DAYS = 7L
 
     fun run(channels: List<Channel>, previous: Map<String, Channel>, progress: (Int, Int) -> Unit) {
         val pool = Executors.newFixedThreadPool(12)
@@ -189,17 +175,11 @@ object Checker {
                 ch.streams.add(0, p)
             }
         }
-        var geo: Stream? = null
         for (s in ch.streams.toList()) {
-            when (Net.test(s)) {
-                "ok" -> { promote(ch, s); ch.status = "ok"; ch.lastOk = now; return }
-                "geo" -> if (geo == null) geo = s
-            }
+            if (Net.works(s)) { promote(ch, s); ch.status = "ok"; ch.lastOk = now; return }
         }
-        if (geo != null) {
-            promote(ch, geo); ch.status = "geo"; ch.lastOk = prev?.lastOk ?: 0L; return
-        }
-        if (prev != null && prev.lastOk > 0 && prev.streams.isNotEmpty() &&
+        // Free-to-air Taiwan channels: keep the last working link for a few days
+        if (ch.group == Groups.MUST && prev != null && prev.lastOk > 0 && prev.streams.isNotEmpty() &&
             now - prev.lastOk < TimeUnit.DAYS.toMillis(KEEP_DAYS)
         ) {
             ch.streams.clear(); ch.streams.addAll(prev.streams)

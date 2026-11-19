@@ -2,7 +2,7 @@ name: Build APK
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
 
 jobs:
@@ -36,10 +36,12 @@ jobs:
           SIGN_PASS: ${{ secrets.KEY_PASS }}
         run: gradle assembleRelease --no-daemon --stacktrace
 
-      - run: cp app/build/outputs/apk/release/app-release.apk MyTV.apk
+      - if: github.ref == 'refs/heads/main'
+        run: cp app/build/outputs/apk/release/app-release.apk MyTV.apk
 
-      - uses: actions/upload-artifact@v4
+      - if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
         with:
           name: MyTV-apk
           path: MyTV.apk
-          retention-days: 3
+          retention-days: 14

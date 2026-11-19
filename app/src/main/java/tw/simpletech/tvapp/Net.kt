@@ -1,5 +1,6 @@
 package tw.simpletech.tvapp
 
+import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
 import java.net.URL
@@ -8,23 +9,29 @@ object Net {
     const val UA = "Mozilla/5.0 (Linux; Android 12; Android TV) AppleWebKit/537.36 " +
         "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 
-    /** Download a text file (playlist). Follows redirects. */
-    fun getText(url: String): String {
+    class Resp(val code: Int, val type: String, val body: ByteArray, val url: String) {
+        val text get() = String(body, Charsets.ISO_8859_1)
+    }
+
+    /** Opens a URL (following redirects) and hands the open stream to [use]. */
+    fun <T> open(url: String, s: Stream?, connectMs: Int, readMs: Int, use: (Int, String, InputStream?, String) -> T): T {
         var u = url
-        repeat(5) {
+        repeat(6) {
             val c = (URL(u).openConnection() as HttpURLConnection).apply {
-                connectTimeout = 15000; readTimeout = 30000
+                connectTimeout = connectMs; readTimeout = readMs
                 instanceFollowRedirects = false
-                setRequestProperty("User-Agent", UA)
+                setRequestProperty("User-Agent", s?.userAgent ?: UA)
+                s?.referrer?.let { setRequestProperty("Referer", it) }
             }
             try {
                 val code = c.responseCode
                 if (code in 300..399) {
-                    u = URL(URL(u), c.getHeaderField("Location") ?: error("bad redirect")).toString()
+                    val loc = c.getHeaderField("Location") ?: return use(code, "", null, u)
+                    u = URL(URL(u), loc).toString()
                     return@repeat
                 }
-                if (code !in 200..299) error("HTTP $code")
-                return c.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                val stream = if (code in 200..299) c.inputStream else null
+                return use(code, (c.contentType ?: "").lowercase(), stream, u)
             } finally {
                 c.disconnect()
             }
@@ -32,44 +39,58 @@ object Net {
         error("too many redirects")
     }
 
-    /** Test one stream link: "ok", "geo" (blocked here) or "dead". */
-    fun test(s: Stream): String {
-        var u = s.url
-        try {
-            repeat(5) {
-                val c = (URL(u).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 6000; readTimeout = 8000
-                    instanceFollowRedirects = false
-                    setRequestProperty("User-Agent", s.userAgent ?: UA)
-                    s.referrer?.let { setRequestProperty("Referer", it) }
-                }
-                try {
-                    val code = c.responseCode
-                    if (code in 300..399) {
-                        val loc = c.getHeaderField("Location") ?: return "dead"
-                        u = URL(URL(u), loc).toString()
-                        return@repeat
-                    }
-                    if (code == 401 || code == 403 || code == 451) return "geo"
-                    if (code !in 200..299) return "dead"
-                    val ct = (c.contentType ?: "").lowercase()
-                    val buf = ByteArray(4096)
-                    val n = c.inputStream.read(buf).coerceAtLeast(0)
-                    val head = String(buf, 0, n, Charsets.ISO_8859_1)
-                    val ok = head.contains("#EXTM3U") || ct.contains("mpegurl") ||
-                        ct.startsWith("video/") || ct.contains("octet-stream") ||
-                        ct.contains("dash") || head.contains("<MPD") ||
-                        (n > 0 && buf[0] == 0x47.toByte())
-                    return if (ok) "ok" else "dead"
-                } finally {
-                    c.disconnect()
-                }
+    fun getText(url: String): String = open(url, null, 15000, 30000) { code, _, input, _ ->
+        if (input == null) error("HTTP $code")
+        input.bufferedReader(Charsets.UTF_8).use { it.readText() }
+    }
+
+    private fun get(url: String, s: Stream, max: Int): Resp = open(url, s, 6000, 8000) { code, type, input, finalUrl ->
+        val buf = ByteArray(max)
+        var n = 0
+        if (input != null) {
+            while (n < max) {
+                val r = input.read(buf, n, max - n)
+                if (r <= 0) break
+                n += r
+                if (max <= 4096) break          // segment test: first bytes are enough
             }
-            return "dead"
+        }
+        Resp(code, type, buf.copyOf(n), finalUrl)
+    }
+
+    private fun firstUri(playlist: String): String? =
+        playlist.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() && !it.startsWith("#") }
+
+    private fun resolve(base: String, rel: String) = URL(URL(base), rel).toString()
+
+    /**
+     * Tests a link the way a player would: playlist -> quality level -> first video piece.
+     * Returns true only if real video data comes back.
+     */
+    fun works(s: Stream): Boolean {
+        try {
+            var r = get(s.url, s, 65536)
+            if (r.code !in 200..299) return false
+            var text = r.text
+            if (text.contains("#EXTM3U")) {
+                if (text.contains("#EXT-X-STREAM-INF")) {
+                    val v = firstUri(text) ?: return false
+                    r = get(resolve(r.url, v), s, 65536)
+                    if (r.code !in 200..299) return false
+                    text = r.text
+                    if (!text.contains("#EXTM3U")) return false
+                }
+                val seg = firstUri(text) ?: return false
+                val sr = get(resolve(r.url, seg), s, 4096)
+                return sr.code in 200..299 && sr.body.isNotEmpty()
+            }
+            val t = r.type
+            return t.startsWith("video/") || t.contains("octet-stream") || t.contains("dash") ||
+                text.contains("<MPD") || (r.body.isNotEmpty() && r.body[0] == 0x47.toByte())
         } catch (e: SocketTimeoutException) {
-            return if (s.geo) "geo" else "dead"
+            return false
         } catch (e: Exception) {
-            return "dead"
+            return false
         }
     }
 }

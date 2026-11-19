@@ -11,6 +11,10 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
+import android.widget.Toast
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -59,7 +63,8 @@ class PlayerActivity : Activity() {
         // Phone: swipe up/down = change channel, tap = show name
         val gestures = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: MotionEvent) = true
-            override fun onSingleTapUp(e: MotionEvent): Boolean { showInfo(); return true }
+            override fun onSingleTapUp(e: MotionEvent): Boolean { showInfo(guide = true); return true }
+            override fun onLongPress(e: MotionEvent) = toggleFav()
             override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
                 if (abs(vy) > abs(vx)) { change(if (vy < 0) 1 else -1); return true }
                 return false
@@ -122,26 +127,58 @@ class PlayerActivity : Activity() {
         play()
     }
 
-    private fun showInfo(extra: String? = null, ms: Long = 4000) {
+    private fun showInfo(extra: String? = null, ms: Long = 5000, guide: Boolean = false) {
         val ch = chans[index]
+        val hm = SimpleDateFormat("HH:mm", Locale.getDefault())
+        val now = System.currentTimeMillis()
         info.text = buildString {
+            if (Store.isFav(ch)) append("♥ ")
             append("${index + 1}. ${ch.name}${ch.label}\n")
             append(ch.group)
+            val progs = Store.guide(ch, if (guide) 8 else 2)
+            if (progs.isNotEmpty()) append("\n")
+            progs.forEachIndexed { i, pr ->
+                val mark = if (i == 0 && pr.start <= now) "▶ 現在 Now" else "   "
+                append("\n$mark  ${hm.format(Date(pr.start))}  ${pr.title}")
+            }
+            if (!guide) append("\n\n→ 節目表 Guide   長按OK 加入最愛 Hold OK = ♥")
             if (extra != null) append("\n\n").append(extra)
         }
         info.visibility = View.VISIBLE
         handler.removeCallbacks(hideInfo)
-        handler.postDelayed(hideInfo, ms)
+        handler.postDelayed(hideInfo, if (guide) 10000 else ms)
+    }
+
+    private fun toggleFav() {
+        val on = Store.toggleFav(this, chans[index])
+        Toast.makeText(this, if (on) "♥ 已加入最愛 Added to favorites" else "已移除最愛 Removed from favorites",
+            Toast.LENGTH_SHORT).show()
+        showInfo()
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP -> { change(-1); return true }
             KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN -> { change(1); return true }
-            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,
-            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_INFO -> { showInfo(); return true }
+            KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_GUIDE -> { showInfo(guide = true); return true }
+            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_INFO -> { showInfo(); return true }
+            KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_BOOKMARK -> { toggleFav(); return true }
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> { event.startTracking(); return true }
         }
         return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyLongPress(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) { toggleFav(); return true }
+        return super.onKeyLongPress(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
+            if (!event.isCanceled) showInfo()
+            return true
+        }
+        return super.onKeyUp(keyCode, event)
     }
 
     override fun onStart() {

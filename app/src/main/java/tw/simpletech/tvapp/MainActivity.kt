@@ -9,9 +9,12 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -41,33 +44,57 @@ class MainActivity : Activity() {
         Store.load(this)
         showGroups()
         val age = System.currentTimeMillis() - Store.lastCheck(this)
-        if (Store.channels.isEmpty() || age > TimeUnit.DAYS.toMillis(14)) refresh() else showDone()
+        when {
+            Store.channels.isEmpty() || age > TimeUnit.DAYS.toMillis(14) -> refresh()
+            System.currentTimeMillis() - Store.lastEpg(this) > TimeUnit.HOURS.toMillis(24) -> refreshGuide()
+            else -> showDone()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // favorites may have changed while watching
+        if (group != null) showChannels(group!!, keepPos = true) else showGroups()
     }
 
     // ---------------------------------------------------------------- screens
     private fun showGroups() {
         group = null
-        val rows = Store.groups().map { (g, n) -> Row(g, "$n") { pos -> groupPos = pos; showChannels(g) } }
+        val rows = Store.groups().map { (g, n) -> Row(g, "$n", null) { pos, _ -> groupPos = pos; showChannels(g) } }
         adapter.set(rows)
-        focus(groupPos)
+        focus(groupPos.coerceAtMost((rows.size - 1).coerceAtLeast(0)))
     }
 
-    private fun showChannels(g: String) {
+    private fun showChannels(g: String, keepPos: Boolean = false) {
         group = g
         val chans = Store.inGroup(g)
+        if (chans.isEmpty()) { showGroups(); return }
+        val now = SimpleDateFormat("HH:mm", Locale.getDefault())
         val rows = chans.mapIndexed { i, ch ->
-            Row("${i + 1}.  ${ch.name}${ch.label}", "") {
-                startActivity(
-                    Intent(this, PlayerActivity::class.java)
-                        .putExtra("group", g).putExtra("index", i)
-                )
+            val heart = if (Store.isFav(ch)) "♥ " else ""
+            val prog = Store.guide(ch, 1).firstOrNull()
+                ?.takeIf { it.start <= System.currentTimeMillis() }
+                ?.let { "▶ ${now.format(Date(it.start))} ${it.title}" } ?: ""
+            Row("$heart${i + 1}. ${ch.name}${ch.label}", prog, ch.logo,
+                onLong = { pos -> toggleFav(ch, pos) }) { _, _ ->
+                startActivity(Intent(this, PlayerActivity::class.java).putExtra("group", g).putExtra("index", i))
             }
         }
+        val pos = if (keepPos) (list.layoutManager as LinearLayoutManager).findFirstVisibleItemPosition() else 0
         adapter.set(rows)
-        focus(0)
+        if (!keepPos) focus(0) else list.scrollToPosition(pos.coerceAtLeast(0))
+    }
+
+    private fun toggleFav(ch: Channel, pos: Int) {
+        val on = Store.toggleFav(this, ch)
+        Toast.makeText(this, if (on) "♥ 已加入最愛 Added to favorites" else "已移除最愛 Removed from favorites",
+            Toast.LENGTH_SHORT).show()
+        showChannels(group ?: return, keepPos = true)
+        focus(pos.coerceAtMost(adapter.itemCount - 1))
     }
 
     private fun focus(pos: Int) {
+        if (pos < 0) return
         list.scrollToPosition(pos)
         list.post { list.findViewHolderForAdapterPosition(pos)?.itemView?.requestFocus() }
     }
@@ -82,9 +109,11 @@ class MainActivity : Activity() {
 
     private fun showDone() {
         val d = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(Store.lastCheck(this)))
-        val ok = Store.channels.count { it.status == "ok" }
-        setStatus("✅ ${Store.channels.size} 個頻道 channels (正常 working: $ok) · 上次檢查 Last check: $d")
+        setStatus("✅ ${Store.channels.size} 個可用頻道 working channels · 上次檢查 Last check: $d · " +
+            "長按頻道加入最愛 Long-press a channel = favorite")
     }
+
+    private fun redraw() = runOnUiThread { if (group == null) showGroups() else showChannels(group!!, keepPos = true) }
 
     private fun refresh() {
         if (busy) return
@@ -96,20 +125,35 @@ class MainActivity : Activity() {
                 val fresh = Builder.build(Store.customUrls(this)) { setStatus(it) }
                 Checker.run(fresh, prev) { done, total ->
                     if (done % 10 == 0 || done == total)
-                        setStatus("🔄 檢查連結中 Checking links: $done / $total （可繼續看電視 you can keep watching）")
+                        setStatus("🔄 檢查連結中 Checking links: $done / $total")
                 }
-                val good = fresh.filter { it.status != "dead" }
-                Store.save(this, good)
-                runOnUiThread {
-                    busy = false
-                    if (group == null) showGroups() else showChannels(group!!)
-                    showDone()
-                }
+                Store.save(this, fresh.filter { it.status != "dead" })
+                redraw()
+                guideNow()
+                busy = false
+                runOnUiThread { redraw(); showDone() }
             } catch (e: Exception) {
                 busy = false
                 setStatus("❌ 失敗 Failed: ${e.message ?: e.javaClass.simpleName} — 請檢查網路 Check internet")
             }
         }
+    }
+
+    private fun refreshGuide() {
+        if (busy) return
+        busy = true
+        thread {
+            guideNow()
+            busy = false
+            runOnUiThread { redraw(); showDone() }
+        }
+    }
+
+    /** Runs on a background thread. */
+    private fun guideNow() {
+        try {
+            Store.saveEpg(this, Epg.download(Store.channels) { setStatus(it) })
+        } catch (_: Exception) { /* keep old guide */ }
     }
 
     private fun editPlaylists() {
@@ -132,7 +176,10 @@ class MainActivity : Activity() {
     }
 
     // ---------------------------------------------------------------- list adapter
-    class Row(val title: String, val sub: String, val onClick: (Int) -> Unit)
+    class Row(
+        val title: String, val sub: String, val logo: String?,
+        val onLong: ((Int) -> Unit)? = null, val onClick: (Int, View) -> Unit,
+    )
 
     class RowAdapter : RecyclerView.Adapter<RowAdapter.VH>() {
         private var rows: List<Row> = emptyList()
@@ -143,6 +190,7 @@ class MainActivity : Activity() {
         }
 
         class VH(v: View) : RecyclerView.ViewHolder(v) {
+            val logo: ImageView = v.findViewById(R.id.rowLogo)
             val title: TextView = v.findViewById(R.id.rowTitle)
             val sub: TextView = v.findViewById(R.id.rowSub)
         }
@@ -156,7 +204,26 @@ class MainActivity : Activity() {
             val r = rows[pos]
             h.title.text = r.title
             h.sub.text = r.sub
-            h.itemView.setOnClickListener { r.onClick(h.bindingAdapterPosition) }
+            if (r.logo == null) {
+                h.logo.visibility = View.GONE
+            } else {
+                h.logo.visibility = View.VISIBLE
+                if (r.logo.isEmpty()) {
+                    Glide.with(h.logo).clear(h.logo)
+                    h.logo.setImageResource(R.mipmap.ic_launcher)
+                } else {
+                    Glide.with(h.logo).load(r.logo).placeholder(R.mipmap.ic_launcher)
+                        .error(R.mipmap.ic_launcher).into(h.logo)
+                }
+            }
+            h.itemView.setOnClickListener { r.onClick(h.bindingAdapterPosition, it) }
+            val long = r.onLong
+            if (long != null) {
+                h.itemView.setOnLongClickListener { long(h.bindingAdapterPosition); true }
+            } else {
+                h.itemView.setOnLongClickListener(null)
+                h.itemView.isLongClickable = false
+            }
         }
     }
 }
