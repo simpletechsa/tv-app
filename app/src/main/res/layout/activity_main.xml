@@ -22,18 +22,14 @@
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/btnCheck"
+            android:id="@+id/btnSettings"
             style="@style/TopButton"
-            android:text="🔄 檢查並修復\nCheck &amp; fix" />
-
-        <TextView
-            android:id="@+id/btnAdd"
-            style="@style/TopButton"
-            android:text="➕ 我的清單\nMy playlists" />
+            android:text="⚙ 設定 Settings" />
     </LinearLayout>
 
     <TextView
         android:id="@+id/status"
+        android:visibility="gone"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingTop="8dp"

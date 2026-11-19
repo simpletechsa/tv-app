@@ -8,6 +8,7 @@ Android phone + Android TV app (v2.1) that finds **free, publicly available** ch
 - Folders: ❤️ Favorites · 🇹🇼 Taiwan · 🏉 Rugby · ⚽ Sports · 📰 News · 🎬 Movies · 📺 Series · 🧸 Kids · 🌍 Documentary · 🎵 Music · 🍳 Lifestyle · 🎭 Entertainment
 - English channels from ZA, UK, US, AU, NZ, KR, JP only; no VPN channels except rugby (country shown)
 - Opens instantly; daily link check runs silently in the background; TV guide from epgshare01; channel source: iptv-org
+- Clean screen: folders + channels only; ⚙ Settings has version, last check, Check now, My playlists.
 - Remote: ↑/↓ channel · OK info · → guide · hold OK = favorite. Phone: swipe, tap, long-press.
 
 Signing: `signing/tvapp.jks` is protected by a long random password stored only in the
