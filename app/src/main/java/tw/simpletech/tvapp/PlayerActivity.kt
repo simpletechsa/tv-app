@@ -3,8 +3,9 @@ package tw.simpletech.tvapp
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
+import android.webkit.WebChromeClient
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -42,6 +43,7 @@ class PlayerActivity : Activity() {
     private lateinit var player: ExoPlayer
     private lateinit var view: PlayerView
     private lateinit var info: TextView
+    private lateinit var web: WebView
     private lateinit var overlay: View
     private lateinit var overlayTitle: TextView
     private lateinit var overlayHint: TextView
@@ -69,6 +71,16 @@ class PlayerActivity : Activity() {
         setContentView(R.layout.activity_player)
         view = findViewById(R.id.playerView)
         info = findViewById(R.id.info)
+        web = findViewById(R.id.web)
+        web.settings.javaScriptEnabled = true
+        web.settings.domStorageEnabled = true
+        web.settings.mediaPlaybackRequiresUserGesture = false
+        web.webViewClient = WebViewClient()
+        web.webChromeClient = WebChromeClient()
+        web.addJavascriptInterface(object {
+            @android.webkit.JavascriptInterface
+            fun failed(code: Int) { runOnUiThread { if (web.visibility == View.VISIBLE) nextStream() } }
+        }, "STSA")
         overlay = findViewById(R.id.overlay)
         overlayTitle = findViewById(R.id.overlayTitle)
         overlayHint = findViewById(R.id.overlayHint)
@@ -103,6 +115,7 @@ class PlayerActivity : Activity() {
             }
         })
         view.setOnTouchListener { _, e -> gestures.onTouchEvent(e); true }
+        web.setOnTouchListener { _, e -> gestures.onTouchEvent(e); true }
 
         play()
     }
@@ -119,12 +132,13 @@ class PlayerActivity : Activity() {
         val ch = chans[index]
         val s = ch.streams.getOrNull(streamIdx)
         if (s == null) {
+            stopWeb()
             player.stop()
             showInfo(Lang.t("❌ 無法播放\n按 上/下 換台", "❌ Can't play this channel\nPress up/down to change"), 8000)
             return
         }
         if (s.isYouTube) { openYouTube(s); return }
-        ytOpened = false
+        stopWeb()
         val ds = DefaultHttpDataSource.Factory()
             .setUserAgent(s.userAgent ?: Net.UA)
             .setAllowCrossProtocolRedirects(true)
@@ -144,27 +158,38 @@ class PlayerActivity : Activity() {
         player.playWhenReady = true
     }
 
-    private var ytOpened = false
-
-    /** Official YouTube live: hand over to the YouTube app. Back returns here. */
+    /** Official YouTube live, played full screen inside the app (no YouTube app needed). */
     private fun openYouTube(s: Stream) {
         player.stop()
-        val id = s.extra
-        val uri = Uri.parse(if (id != null) "https://www.youtube.com/watch?v=$id" else s.url.removePrefix("yt:"))
-        try {
-            ytOpened = true
-            startActivity(Intent(Intent.ACTION_VIEW, uri))
-            showInfo(Lang.t("▶ 在 YouTube 播放", "▶ Playing in YouTube"), 8000)
-        } catch (e: Exception) {
-            ytOpened = false
-            showInfo(Lang.t("❌ 需要 YouTube App", "❌ YouTube app needed"), 8000)
+        view.visibility = View.GONE
+        web.visibility = View.VISIBLE
+        val id = s.extra ?: run { nextStream(); return }
+        // YouTube's own player, full screen, no controls/chat; if it refuses to play, try the next link
+        val html = """<html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+            <style>html,body,#p{margin:0;width:100%;height:100%;background:#000;overflow:hidden}</style></head>
+            <body><div id="p"></div><script src="https://www.youtube.com/iframe_api"></script><script>
+            function onYouTubeIframeAPIReady(){new YT.Player('p',{width:'100%',height:'100%',videoId:'$id',
+            playerVars:{autoplay:1,controls:0,rel:0,modestbranding:1,iv_load_policy:3,playsinline:1,disablekb:1,fs:0,cc_load_policy:0},
+            events:{onReady:function(e){e.target.playVideo();},onError:function(e){STSA.failed(e.data);}}});}
+            </script></body></html>"""
+        web.loadDataWithBaseURL("https://simpletechsa.github.io/", html, "text/html", "UTF-8", null)
+    }
+
+    private var webPaused = false
+
+    private fun stopWeb() {
+        if (web.visibility == View.VISIBLE) {
+            web.loadUrl("about:blank")
+            web.visibility = View.GONE
+            view.visibility = View.VISIBLE
         }
     }
 
     /** Current link failed: try it as HLS once, then the next link. */
     private fun nextStream() {
-        val u = chans[index].streams.getOrNull(streamIdx)?.url?.lowercase() ?: ""
-        if (!forceHls && !u.contains(".m3u") && !u.contains(".mpd")) {
+        val cur = chans[index].streams.getOrNull(streamIdx)
+        val u = cur?.url?.lowercase() ?: ""
+        if (cur?.isYouTube != true && !forceHls && !u.contains(".m3u") && !u.contains(".mpd")) {
             forceHls = true
         } else {
             forceHls = false
@@ -209,6 +234,7 @@ class PlayerActivity : Activity() {
     }
 
     private fun toggleFav(ch: Channel) {
+        if (ch.group == Groups.ADULT) return
         val on = Store.toggleFav(this, ch)
         Toast.makeText(this, if (on) Lang.t("♥ 已加入最愛", "♥ Added to favorites") else Lang.t("已移除最愛", "Removed from favorites"),
             Toast.LENGTH_SHORT).show()
@@ -257,7 +283,7 @@ class PlayerActivity : Activity() {
                 "${if (playing) "🔊 " else ""}${if (Store.isFav(ch)) "♥ " else ""}${i + 1}. ${Lang.pick(ch.name)}",
                 prog, Store.logoFor(ch),
                 onClick = { playFrom(g, i) },
-                onLong = { toggleFav(ch) },
+                onLong = if (ch.group == Groups.ADULT) null else ({ toggleFav(ch) }),
             )
         })
         focusOverlay(focusIndex.coerceIn(0, (list.size - 1).coerceAtLeast(0)))
@@ -267,7 +293,7 @@ class PlayerActivity : Activity() {
         showingFolders = true
         overlayTitle.text = Lang.t("📂 資料夾", "📂 Folders")
         overlayHint.text = Lang.t("OK 打開 · ←/→ 翻頁 · 返回 = 關閉", "OK open · ←/→ page · Back = close")
-        val groups = Store.groups()
+        val groups = Store.groups().filter { it.first != Groups.ADULT }
         overlayAdapter.set(groups.map { (g, n) ->
             OverlayAdapter.Item(Lang.pick(g), "$n", null, onClick = { showChannelsInOverlay(g) })
         })
@@ -337,19 +363,24 @@ class PlayerActivity : Activity() {
     override fun onStart() {
         super.onStart()
         if (!::player.isInitialized) return
-        if (ytOpened) { showInfo("▶ YouTube", 6000); return }   // came back from YouTube
+        if (chans[index].streams.getOrNull(streamIdx)?.isYouTube == true) {
+            if (webPaused) { webPaused = false; start() }      // coming back: reload the YouTube live
+            return
+        }
         if (player.playbackState == Player.STATE_IDLE) start() else player.play()
     }
 
     override fun onStop() {
         super.onStop()
         if (::player.isInitialized) player.pause()
+        if (::web.isInitialized && web.visibility == View.VISIBLE) { web.loadUrl("about:blank"); webPaused = true }
     }
 
     override fun onDestroy() {
         handler.removeCallbacks(hideInfo)
         handler.removeCallbacks(hideOverlay)
         if (::player.isInitialized) player.release()
+        if (::web.isInitialized) web.destroy()
         super.onDestroy()
     }
 

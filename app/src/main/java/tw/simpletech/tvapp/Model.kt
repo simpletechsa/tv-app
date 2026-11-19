@@ -23,7 +23,7 @@ class Channel(
     var lastOk: Long = 0L,
 ) {
     val label: String
-        get() = if (streams.firstOrNull()?.isYouTube == true && status == "ok") "  (YouTube)" else when (status) {
+        get() = when (status) {
             "kept" -> "  ⟲"
             "vpn" -> Builder.country(key.removePrefix("my:")).let { cc ->
                 if (cc.length != 2) "  (VPN)" else "  (VPN: ${Builder.flag(cc)} ${Builder.countryName(cc)})"
@@ -77,6 +77,7 @@ object Groups {
     const val FAV = "❤️ 我的最愛 Favorites"
     const val TW = "🇹🇼 台灣 Taiwan"
     const val ZA = "🇿🇦 南非 South Africa"
+    const val ADULT = "🔒 成人 Adult"
     const val MY = "📌 我的清單 My playlists"
     const val RUGBY = "🏉 橄欖球 Rugby"
     const val SPORT = "⚽ 體育 Sports"
@@ -95,7 +96,10 @@ object Groups {
 
     private val fixed = listOf(FAV, TW, ZA, MY, RUGBY, SPORT, NEWS, MOVIES, SERIES, KIDS, DOC, MUSIC, LIFE, ENT, OTHER)
 
-    fun order(g: String): Int = fixed.indexOf(g).let { if (it < 0) 99 else it }
+    fun order(g: String): Int = if (g == ADULT) 98 else fixed.indexOf(g).let { if (it < 0) 99 else it }
+
+    /** Groups where channels that need a VPN are kept (with the country shown). */
+    val VPN_OK = setOf(RUGBY, SPORT)
 
     /** Picks a folder from iptv-org's category text, e.g. "News;General". */
     fun byCategory(cats: String): String {
