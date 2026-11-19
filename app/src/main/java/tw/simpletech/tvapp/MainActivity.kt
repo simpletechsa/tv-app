@@ -109,6 +109,17 @@ class MainActivity : Activity() {
         list.post { list.findViewHolderForAdapterPosition(pos)?.itemView?.requestFocus() }
     }
 
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        val inList = list.hasFocus()
+        when (keyCode) {
+            android.view.KeyEvent.KEYCODE_DPAD_LEFT, android.view.KeyEvent.KEYCODE_PAGE_UP ->
+                if (inList) { Paging.jump(list, false); return true }
+            android.view.KeyEvent.KEYCODE_DPAD_RIGHT, android.view.KeyEvent.KEYCODE_PAGE_DOWN ->
+                if (inList) { Paging.jump(list, true); return true }
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         if (group != null) showGroups() else super.onBackPressed()
@@ -136,7 +147,7 @@ class MainActivity : Activity() {
             if (Updater.isRunning) append("\n🔄 背景更新中 Updating in the background…\n")
             if (Updater.vpnOn(this@MainActivity)) append("\n⚠️ VPN 開啟中，暫停自動檢查 VPN on: auto check paused\n")
             append("\n每天自動在背景檢查 Checked daily in the background.\n")
-            append("\n遙控器 Remote: ↑/↓ 換台 channel · ←/→ 音量 volume · OK 頻道清單 channel list · 長按OK ♥ hold OK = favorite\n")
+            append("\n遙控器 Remote: ↑/↓ 換台 channel · OK 頻道清單 list (←/→ 翻頁 page, 返回 資料夾 Back = folders) · 長按OK ♥ hold OK = favorite · 音量用音量鍵 volume keys\n")
             append("手機 Phone: 上下滑 換台 swipe = channel · 點一下 清單 tap = list · 長按 ♥ long-press = favorite")
         }
         AlertDialog.Builder(this)

@@ -1,6 +1,6 @@
 # STSA TV
 
-Android phone + Android TV app (v2.2) that finds **free, publicly available** channels
+Android phone + Android TV app (v2.3) that finds **free, publicly available** channels
 (Taiwan, rugby/sports, English), checks every link on the device, and replaces broken links.
 
 手機與 Android TV 皆可使用。只收錄免費、公開的頻道，並在裝置上自動檢查與修復連結。
@@ -11,7 +11,7 @@ Android phone + Android TV app (v2.2) that finds **free, publicly available** ch
 - English channels from ZA, UK, US, AU, NZ, KR, JP only; no VPN channels except rugby (country shown)
 - Opens instantly; daily link check runs silently in the background; TV guide from epgshare01; channel source: iptv-org
 - Clean screen: folders + channels only; press the STSA TV title for Settings (version, last check, Check now, My playlists.
-- Remote: ↑/↓ channel · ←/→ volume · OK see-through channel list (← folders) · hold OK = favorite. Phone: swipe, tap = list, long-press = favorite.
+- Remote: ↑/↓ channel · OK see-through list (←/→ page, Back = folders) · hold OK = favorite · volume keys for volume. Phone: swipe, tap = list, long-press = favorite.
 
 Signing: `signing/tvapp.jks` is protected by a long random password stored only in the
 `KEY_PASS` repository secret.
