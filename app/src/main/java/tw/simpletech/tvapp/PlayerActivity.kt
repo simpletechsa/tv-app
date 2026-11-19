@@ -168,7 +168,9 @@ class PlayerActivity : Activity() {
             try {
                 extOpened = true
                 startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
-                    android.net.Uri.parse("https://www.youtube.com/watch?v=${s.extra}")).setPackage(ext))
+                    android.net.Uri.parse("https://www.youtube.com/watch?v=${s.extra}")).setPackage(ext)
+                    .putExtra("force_fullscreen", true)        // open straight in full screen (no chat panel)
+                    .putExtra("finish_on_ended", true))        // return to STSA TV when it ends
                 return
             } catch (e: Exception) { extOpened = false }      // app missing: fall back to built-in
         }
