@@ -22,6 +22,9 @@ class Channel(
     val label: String
         get() = when (status) {
             "kept" -> "  ⟲"
+            "vpn" -> Builder.country(key.removePrefix("my:")).let { cc ->
+                "  (VPN: ${Builder.flag(cc)} ${Builder.countryName(cc)})"
+            }
             else -> ""
         }
 

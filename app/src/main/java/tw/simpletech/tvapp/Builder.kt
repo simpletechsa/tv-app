@@ -89,6 +89,19 @@ object Builder {
     private val RUGBY = Regex("""rugby|\bnrl\b""", RegexOption.IGNORE_CASE)
     private val mustNames = MUST.map { it.first }
 
+    fun flag(cc: String): String {
+        val c = if (cc == "uk") "GB" else cc.uppercase()
+        if (c.length != 2 || !c.all { it in 'A'..'Z' }) return ""
+        return String(Character.toChars(0x1F1E6 + (c[0] - 'A'))) +
+            String(Character.toChars(0x1F1E6 + (c[1] - 'A')))
+    }
+
+    fun countryName(cc: String): String {
+        if (cc.length != 2) return "?"
+        val c = if (cc == "uk") "GB" else cc.uppercase()
+        return java.util.Locale("", c).getDisplayCountry(java.util.Locale.ENGLISH).ifEmpty { c }
+    }
+
     /** Position in the free-to-air list (for sorting the Taiwan folder), or -1. */
     fun mustIndex(name: String) = mustNames.indexOf(name)
 
@@ -130,21 +143,23 @@ object Builder {
         }
         // 3. Rugby + sports in English or Chinese. Links marked geo-blocked need a VPN -> skipped.
         for (e in sports) {
-            if (skip(e) || e.stream.geo || country(e.id) == "tw") continue
+            if (skip(e) || country(e.id) == "tw") continue
             val b = base(e.id)
             when {
-                rugby(e) -> add(e, Groups.RUGBY)
+                rugby(e) -> add(e, Groups.RUGBY)          // VPN-only rugby is kept, with its country shown
+                e.stream.geo -> {}
                 b in engIds || b in zhoIds -> add(e, Groups.SPORT)
             }
         }
         // 3b. Rugby from any Chinese list too
-        for (e in zho) if (!skip(e) && !e.stream.geo && rugby(e)) add(e, Groups.RUGBY)
+        for (e in zho) if (!skip(e) && rugby(e)) add(e, Groups.RUGBY)
         // 4. English channels from your chosen countries only, sorted into folders by type
         for (e in eng) {
-            if (skip(e) || e.stream.geo) continue
+            if (skip(e)) continue
             val cc = country(e.id)
             when {
                 rugby(e) -> add(e, Groups.RUGBY)
+                e.stream.geo -> {}
                 cc in Groups.COUNTRIES -> add(e, Groups.byCategory(e.cats))
             }
         }
@@ -182,8 +197,16 @@ object Checker {
                 ch.streams.add(0, p)
             }
         }
+        var geo: Stream? = null
         for (s in ch.streams.toList()) {
-            if (Net.works(s)) { promote(ch, s); ch.status = "ok"; ch.lastOk = now; return }
+            when (Net.check(s)) {
+                "ok" -> { promote(ch, s); ch.status = "ok"; ch.lastOk = now; return }
+                "geo" -> if (geo == null) geo = s
+            }
+        }
+        // Rugby that only works with a VPN: keep it and show which country to pick
+        if (ch.group == Groups.RUGBY && geo != null) {
+            promote(ch, geo); ch.status = "vpn"; return
         }
         // Free-to-air Taiwan channels: keep the last working link for a few days
         if (ch.group == Groups.TW && Builder.mustIndex(ch.name) >= 0 && prev != null && prev.lastOk > 0 && prev.streams.isNotEmpty() &&

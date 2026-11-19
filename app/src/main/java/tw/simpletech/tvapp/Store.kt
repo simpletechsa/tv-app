@@ -69,7 +69,7 @@ object Store {
         val list = if (g == Groups.FAV) channels.filter { isFav(it) } else channels.filter { it.group == g }
         return list.sortedWith(compareBy(
             { Builder.mustIndex(it.name).let { i -> if (i < 0) 999 else i } },
-            { it.status != "ok" }, { it.name.lowercase() }))
+            { it.name.lowercase() }))
     }
 
     // ------------------------------------------------------------ TV guide

@@ -63,34 +63,38 @@ object Net {
 
     private fun resolve(base: String, rel: String) = URL(URL(base), rel).toString()
 
+    private fun blocked(code: Int) = code == 401 || code == 403 || code == 451
+
     /**
      * Tests a link the way a player would: playlist -> quality level -> first video piece.
-     * Returns true only if real video data comes back.
+     * Returns "ok" (real video came back), "geo" (blocked in this country) or "dead".
      */
-    fun works(s: Stream): Boolean {
+    fun check(s: Stream): String {
         try {
             var r = get(s.url, s, 65536)
-            if (r.code !in 200..299) return false
+            if (blocked(r.code)) return "geo"
+            if (r.code !in 200..299) return "dead"
             var text = r.text
             if (text.contains("#EXTM3U")) {
                 if (text.contains("#EXT-X-STREAM-INF")) {
-                    val v = firstUri(text) ?: return false
+                    val v = firstUri(text) ?: return "dead"
                     r = get(resolve(r.url, v), s, 65536)
-                    if (r.code !in 200..299) return false
+                    if (blocked(r.code)) return "geo"
+                    if (r.code !in 200..299) return "dead"
                     text = r.text
-                    if (!text.contains("#EXTM3U")) return false
+                    if (!text.contains("#EXTM3U")) return "dead"
                 }
-                val seg = firstUri(text) ?: return false
+                val seg = firstUri(text) ?: return "dead"
                 val sr = get(resolve(r.url, seg), s, 4096)
-                return sr.code in 200..299 && sr.body.isNotEmpty()
+                if (blocked(sr.code)) return "geo"
+                return if (sr.code in 200..299 && sr.body.isNotEmpty()) "ok" else "dead"
             }
             val t = r.type
-            return t.startsWith("video/") || t.contains("octet-stream") || t.contains("dash") ||
+            val ok = t.startsWith("video/") || t.contains("octet-stream") || t.contains("dash") ||
                 text.contains("<MPD") || (r.body.isNotEmpty() && r.body[0] == 0x47.toByte())
-        } catch (e: SocketTimeoutException) {
-            return false
+            return if (ok) "ok" else "dead"
         } catch (e: Exception) {
-            return false
+            return if (s.geo) "geo" else "dead"
         }
     }
 }
