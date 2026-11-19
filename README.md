@@ -8,3 +8,6 @@ Android phone + Android TV app that finds **free, publicly available** channels
 - Channel source: [iptv-org](https://github.com/iptv-org/iptv) public playlists
 - Auto check every 14 days, or press **🔄 Check & fix**
 - Remote: ↑/↓ change channel, OK shows channel name. Phone: swipe up/down.
+
+Signing: `signing/tvapp.jks` is protected by a long random password stored only in the
+`KEY_PASS` repository secret.

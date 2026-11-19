@@ -23,11 +23,12 @@ jobs:
 
       - name: Signing key
         env:
-          KEY_B64: ${{ secrets.KEY_B64 }}
+          KEY_PASS: ${{ secrets.KEY_PASS }}
         run: |
-          if [ -n "$KEY_B64" ]; then
-            echo "$KEY_B64" | base64 -d > "$RUNNER_TEMP/key.jks"
-            echo "SIGN_STORE=$RUNNER_TEMP/key.jks" >> "$GITHUB_ENV"
+          if [ -n "$KEY_PASS" ]; then
+            echo "SIGN_STORE=$GITHUB_WORKSPACE/signing/tvapp.jks" >> "$GITHUB_ENV"
+          else
+            echo "::warning::KEY_PASS secret not set - using a temporary debug key"
           fi
 
       - name: Build
