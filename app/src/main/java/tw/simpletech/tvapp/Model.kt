@@ -21,8 +21,10 @@ class Channel(
 ) {
     val label: String
         get() = when (status) {
-            "geo" -> "  (VPN?)"
             "kept" -> "  ⟲"
+            "vpn" -> Builder.country(key.removePrefix("my:")).let { cc ->
+                if (cc.length != 2) "  (VPN)" else "  (VPN: ${Builder.flag(cc)} ${Builder.countryName(cc)})"
+            }
             else -> ""
         }
 
@@ -64,23 +66,45 @@ class Channel(
     }
 }
 
+data class Prog(val start: Long, val stop: Long, val title: String)
+
 object Groups {
-    const val MUST = "⭐ 台灣無線台 Taiwan Free-to-Air"
+    const val FAV = "❤️ 我的最愛 Favorites"
     const val TW = "🇹🇼 台灣 Taiwan"
     const val MY = "📌 我的清單 My playlists"
     const val RUGBY = "🏉 橄欖球 Rugby"
     const val SPORT = "⚽ 體育 Sports"
-    const val UNSURE = "❓ 語言未確認 Language unconfirmed"
+    const val NEWS = "📰 新聞 News"
+    const val MOVIES = "🎬 電影 Movies"
+    const val SERIES = "📺 影集喜劇 Series & Comedy"
+    const val KIDS = "🧸 兒童 Kids"
+    const val DOC = "🌍 紀錄片 Documentary"
+    const val MUSIC = "🎵 音樂 Music"
+    const val LIFE = "🍳 生活旅遊 Lifestyle"
+    const val ENT = "🎭 綜合娛樂 Entertainment"
+    const val OTHER = "📂 其他 Other"
 
-    private val fixed = listOf(MUST, TW, MY, RUGBY, SPORT)
+    /** English channels are kept only from these countries. */
+    val COUNTRIES = setOf("za", "uk", "us", "au", "nz", "kr", "jp")
 
-    /** Sort order: fixed groups first, English countries next, unconfirmed last. */
-    fun order(g: String): Pair<Int, String> = when {
-        g in fixed -> fixed.indexOf(g) to ""
-        g == UNSURE -> 99 to ""
-        g.contains("United States") -> 10 to g
-        g.contains("United Kingdom") -> 11 to g
-        g.contains("South Africa") -> 12 to g
-        else -> 20 to g
+    private val fixed = listOf(FAV, TW, MY, RUGBY, SPORT, NEWS, MOVIES, SERIES, KIDS, DOC, MUSIC, LIFE, ENT, OTHER)
+
+    fun order(g: String): Int = fixed.indexOf(g).let { if (it < 0) 99 else it }
+
+    /** Picks a folder from iptv-org's category text, e.g. "News;General". */
+    fun byCategory(cats: String): String {
+        val c = cats.lowercase()
+        return when {
+            c.contains("sport") -> SPORT
+            c.contains("kids") || c.contains("animation") -> KIDS
+            c.contains("movie") -> MOVIES
+            c.contains("series") || c.contains("comedy") -> SERIES
+            c.contains("news") || c.contains("weather") || c.contains("business") || c.contains("legislative") -> NEWS
+            c.contains("documentary") || c.contains("science") || c.contains("outdoor") -> DOC
+            c.contains("music") -> MUSIC
+            listOf("cooking", "travel", "lifestyle", "family", "auto").any { c.contains(it) } -> LIFE
+            listOf("entertainment", "general", "culture", "classic", "education").any { c.contains(it) } -> ENT
+            else -> OTHER
+        }
     }
 }

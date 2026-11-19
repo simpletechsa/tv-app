@@ -4,5 +4,5 @@ pluginManagement {
 dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
-rootProject.name = "MyTV"
+rootProject.name = "STSA-TV"
 include(":app")

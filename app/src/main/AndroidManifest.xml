@@ -8,8 +8,9 @@
     <uses-feature android:name="android.software.leanback" android:required="false" />
 
     <application
-        android:label="我的電視 My TV"
+        android:label="STSA TV"
         android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:banner="@drawable/banner"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="true"

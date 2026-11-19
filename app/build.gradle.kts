@@ -15,7 +15,7 @@ android {
         minSdk = 21
         targetSdk = 34
         versionCode = run
-        versionName = "1.0.$run"
+        versionName = "2.0"
     }
 
     signingConfigs {
@@ -55,5 +55,6 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-dash:$media3")
     implementation("androidx.media3:media3-ui:$media3")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
+    implementation("com.github.bumptech.glide:glide:4.16.0")
     implementation("androidx.annotation:annotation-experimental:1.4.1")
 }
