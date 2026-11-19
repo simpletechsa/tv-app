@@ -35,43 +35,50 @@ class MainActivity : Activity() {
         setContentView(R.layout.activity_main)
         list = findViewById(R.id.list)
         status = findViewById(R.id.status)
-        val ver = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Exception) { "" }
-        findViewById<TextView>(R.id.title).text = "STSA TV  v$ver"
         list.layoutManager = LinearLayoutManager(this)
         list.adapter = adapter
 
-        findViewById<View>(R.id.btnCheck).setOnClickListener { refresh() }
-        findViewById<View>(R.id.btnAdd).setOnClickListener { editPlaylists() }
+        findViewById<View>(R.id.btnSettings).setOnClickListener { settings() }
 
         Store.load(this)
+        Updater.schedule(this)
         showGroups()
-        val age = System.currentTimeMillis() - Store.lastCheck(this)
         when {
-            Store.channels.isEmpty() || age > TimeUnit.HOURS.toMillis(20) ||
-                Store.channels.any { Groups.order(it.group) == 99 } -> refresh()
-            System.currentTimeMillis() - Store.lastEpg(this) > TimeUnit.HOURS.toMillis(24) -> refreshGuide()
-            else -> showDone()
+            Store.channels.isEmpty() -> refresh()                                  // first install: show progress
+            Store.channels.any { Groups.order(it.group) == 99 } -> refresh()       // old app data: rebuild once
+            else -> { showDone(); quietUpdate() }                                  // normal: open now, check silently
         }
+    }
+
+    private fun quietUpdate() {
+        if (!Updater.checkDue(this) && !Updater.guideDue(this)) return
+        thread { Updater.quiet(applicationContext) }
     }
 
     override fun onResume() {
         super.onResume()
+        Updater.onUpdated = { runOnUiThread { redraw() } }
         // favorites may have changed while watching
-        if (group != null) showChannels(group!!, keepPos = true) else showGroups()
+        redraw()
+    }
+
+    override fun onPause() {
+        Updater.onUpdated = null
+        super.onPause()
     }
 
     // ---------------------------------------------------------------- screens
-    private fun showGroups() {
+    private fun showGroups(moveFocus: Boolean = true) {
         group = null
         val rows = Store.groups().map { (g, n) -> Row(g, "$n", null) { pos, _ -> groupPos = pos; showChannels(g) } }
         adapter.set(rows)
-        focus(groupPos.coerceAtMost((rows.size - 1).coerceAtLeast(0)))
+        if (moveFocus) focus(groupPos.coerceAtMost((rows.size - 1).coerceAtLeast(0)))
     }
 
     private fun showChannels(g: String, keepPos: Boolean = false) {
         group = g
         val chans = Store.inGroup(g)
-        if (chans.isEmpty()) { showGroups(); return }
+        if (chans.isEmpty()) { showGroups(moveFocus = !keepPos); return }
         val now = SimpleDateFormat("HH:mm", Locale.getDefault())
         val rows = chans.mapIndexed { i, ch ->
             val heart = if (Store.isFav(ch)) "♥ " else ""
@@ -108,55 +115,59 @@ class MainActivity : Activity() {
     }
 
     // ---------------------------------------------------------------- check & fix
-    private fun setStatus(s: String) = runOnUiThread { status.text = s }
-
-    private fun showDone() {
-        val d = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(Store.lastCheck(this)))
-        setStatus("✅ ${Store.channels.size} 個可用頻道 working channels · 上次檢查 Last check: $d · " +
-            "長按頻道加入最愛 Long-press a channel = favorite")
+    private fun setStatus(s: String) = runOnUiThread {
+        status.text = s
+        status.visibility = if (busy) View.VISIBLE else View.GONE
     }
 
-    private fun redraw() = runOnUiThread { if (group == null) showGroups() else showChannels(group!!, keepPos = true) }
+    private fun showDone() = runOnUiThread { status.visibility = View.GONE }
 
+    private fun settings() {
+        val ver = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Exception) { "?" }
+        val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
+        fun date(t: Long) = if (t == 0L) "—" else fmt.format(Date(t))
+        val chans = Store.channels
+        val guideCount = chans.count { Store.epg.containsKey(it.key) }
+        val msg = buildString {
+            append("版本 Version: v$ver\n")
+            append("頻道 Channels: ${chans.size}\n")
+            append("上次檢查 Last check: ${date(Store.lastCheck(this@MainActivity))}\n")
+            append("節目表 TV guide: ${date(Store.lastEpg(this@MainActivity))} ($guideCount channels)\n")
+            if (Updater.isRunning) append("\n🔄 背景更新中 Updating in the background…\n")
+            append("\n每天自動在背景檢查 Checked daily in the background.\n")
+            append("\n遙控器 Remote: ↑/↓ 換台 channel · OK 資訊 info · → 節目表 guide · 長按OK ♥ hold OK = favorite\n")
+            append("手機 Phone: 上下滑 swipe · 點一下 tap · 長按 ♥ long-press = favorite")
+        }
+        AlertDialog.Builder(this)
+            .setTitle("⚙ STSA TV 設定 Settings")
+            .setMessage(msg)
+            .setPositiveButton("🔄 立即檢查 Check now") { _, _ -> refresh() }
+            .setNeutralButton("📌 我的清單 My playlists") { _, _ -> editPlaylists() }
+            .setNegativeButton("關閉 Close", null)
+            .show()
+    }
+
+    /** Updates the list without moving the selection. */
+    private fun redraw() {
+        if (group == null) showGroups(moveFocus = false) else showChannels(group!!, keepPos = true)
+    }
+
+    /** Visible check (first install or the Check & fix button). */
     private fun refresh() {
         if (busy) return
+        if (Updater.isRunning) { setStatus("🔄 已在背景更新中 Already updating in the background…"); return }
         busy = true
         setStatus("開始… Starting…")
         thread {
             try {
-                val prev = Store.channels.associateBy { it.key }
-                val fresh = Builder.build(Store.customUrls(this)) { setStatus(it) }
-                Checker.run(fresh, prev) { done, total ->
-                    if (done % 10 == 0 || done == total)
-                        setStatus("🔄 檢查連結中 Checking links: $done / $total")
-                }
-                Store.save(this, fresh.filter { it.status != "dead" })
-                redraw()
-                guideNow()
+                Updater.full(applicationContext) { setStatus(it) }
                 busy = false
                 runOnUiThread { redraw(); showDone() }
             } catch (e: Exception) {
-                busy = false
                 setStatus("❌ 失敗 Failed: ${e.message ?: e.javaClass.simpleName} — 請檢查網路 Check internet")
+                busy = false
             }
         }
-    }
-
-    private fun refreshGuide() {
-        if (busy) return
-        busy = true
-        thread {
-            guideNow()
-            busy = false
-            runOnUiThread { redraw(); showDone() }
-        }
-    }
-
-    /** Runs on a background thread. */
-    private fun guideNow() {
-        try {
-            Store.saveEpg(this, Epg.download(Store.channels) { setStatus(it) })
-        } catch (_: Exception) { /* keep old guide */ }
     }
 
     private fun editPlaylists() {
