@@ -92,6 +92,27 @@ object Builder {
     /** Never add these channels (by request). */
     private val BANNED = Regex("""中天|\bcti\b""", RegexOption.IGNORE_CASE)
 
+    private val RUGBY = Regex("""rugby|\bnrl\b""", RegexOption.IGNORE_CASE)
+    private val mustNames = MUST.map { it.first }
+
+    fun flag(cc: String): String {
+        val c = if (cc == "uk") "GB" else cc.uppercase()
+        if (c.length != 2 || !c.all { it in 'A'..'Z' }) return ""
+        return String(Character.toChars(0x1F1E6 + (c[0] - 'A'))) +
+            String(Character.toChars(0x1F1E6 + (c[1] - 'A')))
+    }
+
+    fun countryName(cc: String): String {
+        if (cc.length != 2) return "?"
+        val c = if (cc == "uk") "GB" else cc.uppercase()
+        return java.util.Locale("", c).getDisplayCountry(java.util.Locale.ENGLISH).ifEmpty { c }
+    }
+
+    /** Position in the free-to-air list (for sorting the Taiwan folder), or -1. */
+    fun mustIndex(name: String) = mustNames.indexOf(name)
+
+    private fun base(id: String) = id.substringBefore('@')
+    fun country(id: String) = base(id).substringAfterLast('.', "").lowercase()
     private fun skip(e: M3u.Entry) = SKIP.any { e.cats.contains(it, true) } || BANNED.containsMatchIn(e.name)
 
     private fun load(path: String): List<M3u.Entry> =
