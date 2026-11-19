@@ -3,6 +3,8 @@ package tw.simpletech.tvapp
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.media.AudioManager
 import android.os.Bundle
 import android.os.Handler
@@ -122,6 +124,8 @@ class PlayerActivity : Activity() {
             showInfo("❌ 無法播放 Can't play this channel\n按 上/下 換台 Press up/down to change", 8000)
             return
         }
+        if (s.isYouTube) { openYouTube(s); return }
+        ytOpened = false
         val ds = DefaultHttpDataSource.Factory()
             .setUserAgent(s.userAgent ?: Net.UA)
             .setAllowCrossProtocolRedirects(true)
@@ -139,6 +143,23 @@ class PlayerActivity : Activity() {
         player.setMediaSource(source)
         player.prepare()
         player.playWhenReady = true
+    }
+
+    private var ytOpened = false
+
+    /** Official YouTube live: hand over to the YouTube app. Back returns here. */
+    private fun openYouTube(s: Stream) {
+        player.stop()
+        val id = s.extra
+        val uri = Uri.parse(if (id != null) "https://www.youtube.com/watch?v=$id" else s.url.removePrefix("yt:"))
+        try {
+            ytOpened = true
+            startActivity(Intent(Intent.ACTION_VIEW, uri))
+            showInfo("▶ 在 YouTube 播放 Playing in YouTube\nOK 頻道清單 list · ↑/↓ 換台 change", 8000)
+        } catch (e: Exception) {
+            ytOpened = false
+            showInfo("❌ 需要 YouTube App — YouTube app needed", 8000)
+        }
     }
 
     /** Current link failed: try it as HLS once, then the next link. */
@@ -332,8 +353,9 @@ class PlayerActivity : Activity() {
     // ------------------------------------------------------------------ lifecycle
     override fun onStart() {
         super.onStart()
-        if (::player.isInitialized && player.playbackState == Player.STATE_IDLE) start()
-        else if (::player.isInitialized) player.play()
+        if (!::player.isInitialized) return
+        if (ytOpened) { showInfo("▶ YouTube\nOK 頻道清單 list · ↑/↓ 換台 change", 6000); return }   // came back from YouTube
+        if (player.playbackState == Player.STATE_IDLE) start() else player.play()
     }
 
     override fun onStop() {
