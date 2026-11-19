@@ -89,6 +89,11 @@ object Store {
         prefs(ctx).edit().putBoolean("admin", on).apply()
     }
 
+    // ------------------------------------------------------------ YouTube player choice
+    /** null = built-in player; otherwise the package of the app chosen in Settings. */
+    fun youTubeApp(ctx: Context): String? = prefs(ctx).getString("ytApp", null)
+    fun setYouTubeApp(ctx: Context, pkg: String?) = prefs(ctx).edit().putString("ytApp", pkg).apply()
+
     // ------------------------------------------------------------ favorites
     fun isFav(ch: Channel) = ch.key in favs
 

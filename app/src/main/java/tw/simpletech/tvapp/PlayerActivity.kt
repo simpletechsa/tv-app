@@ -159,8 +159,19 @@ class PlayerActivity : Activity() {
     }
 
     /** Official YouTube live, played full screen inside the app (no YouTube app needed). */
+    private var extOpened = false
+
     private fun openYouTube(s: Stream) {
         player.stop()
+        val ext = Store.youTubeApp(this)
+        if (ext != null && s.extra != null) {
+            try {
+                extOpened = true
+                startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
+                    android.net.Uri.parse("https://www.youtube.com/watch?v=${s.extra}")).setPackage(ext))
+                return
+            } catch (e: Exception) { extOpened = false }      // app missing: fall back to built-in
+        }
         view.visibility = View.GONE
         web.visibility = View.VISIBLE
         val id = s.extra ?: run { nextStream(); return }
@@ -178,6 +189,7 @@ class PlayerActivity : Activity() {
     private var webPaused = false
 
     private fun stopWeb() {
+        extOpened = false
         if (web.visibility == View.VISIBLE) {
             web.loadUrl("about:blank")
             web.visibility = View.GONE
@@ -364,6 +376,7 @@ class PlayerActivity : Activity() {
         super.onStart()
         if (!::player.isInitialized) return
         if (chans[index].streams.getOrNull(streamIdx)?.isYouTube == true) {
+            if (extOpened) { showInfo(); return }               // back from the chosen YouTube app
             if (webPaused) { webPaused = false; start() }      // coming back: reload the YouTube live
             return
         }
