@@ -1,13 +1,14 @@
 # STSA TV
 
-Android phone + Android TV app that finds **free, publicly available** channels
+Android phone + Android TV app (v2.0) that finds **free, publicly available** channels
 (Taiwan, rugby/sports, English), checks every link on the device, and replaces broken links.
 
 手機與 Android TV 皆可使用。只收錄免費、公開的頻道，並在裝置上自動檢查與修復連結。
 
-- Channel source: [iptv-org](https://github.com/iptv-org/iptv) public playlists
-- Auto check every 14 days, or press **🔄 Check & fix**
-- Remote: ↑/↓ change channel, OK shows channel name. Phone: swipe up/down.
+- Folders: ❤️ Favorites · 🇹🇼 Taiwan · 🏉 Rugby · ⚽ Sports · 📰 News · 🎬 Movies · 📺 Series · 🧸 Kids · 🌍 Documentary · 🎵 Music · 🍳 Lifestyle · 🎭 Entertainment
+- English channels from ZA, UK, US, AU, NZ, KR, JP only; no VPN channels except rugby (country shown)
+- Daily link check on first open each day; TV guide from epgshare01; channel source: iptv-org
+- Remote: ↑/↓ channel · OK info · → guide · hold OK = favorite. Phone: swipe, tap, long-press.
 
 Signing: `signing/tvapp.jks` is protected by a long random password stored only in the
 `KEY_PASS` repository secret.
