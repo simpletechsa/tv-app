@@ -2,19 +2,21 @@ package tw.simpletech.tvapp
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.Context
+import android.media.AudioManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.GestureDetector
 import android.view.KeyEvent
+import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -25,6 +27,12 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.abs
 
 @OptIn(UnstableApi::class)
@@ -33,12 +41,25 @@ class PlayerActivity : Activity() {
     private lateinit var player: ExoPlayer
     private lateinit var view: PlayerView
     private lateinit var info: TextView
+    private lateinit var overlay: View
+    private lateinit var overlayTitle: TextView
+    private lateinit var overlayHint: TextView
+    private lateinit var overlayList: RecyclerView
+    private val overlayAdapter = OverlayAdapter()
+
+    private var group = ""
     private lateinit var chans: List<Channel>
     private var index = 0
     private var streamIdx = 0
     private var forceHls = false
+
+    private var showingFolders = false
+    private var overlayGroup = ""
+
     private val handler = Handler(Looper.getMainLooper())
     private val hideInfo = Runnable { info.visibility = View.GONE }
+    private val hideOverlay = Runnable { closeOverlay() }
+    private val hm = SimpleDateFormat("HH:mm", Locale.getDefault())
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -47,8 +68,15 @@ class PlayerActivity : Activity() {
         setContentView(R.layout.activity_player)
         view = findViewById(R.id.playerView)
         info = findViewById(R.id.info)
+        overlay = findViewById(R.id.overlay)
+        overlayTitle = findViewById(R.id.overlayTitle)
+        overlayHint = findViewById(R.id.overlayHint)
+        overlayList = findViewById(R.id.overlayList)
+        overlayList.layoutManager = LinearLayoutManager(this)
+        overlayList.adapter = overlayAdapter
 
-        chans = Store.inGroup(intent.getStringExtra("group") ?: "")
+        group = intent.getStringExtra("group") ?: ""
+        chans = Store.inGroup(group)
         if (chans.isEmpty()) { finish(); return }
         index = intent.getIntExtra("index", 0).coerceIn(0, chans.size - 1)
 
@@ -60,11 +88,14 @@ class PlayerActivity : Activity() {
             override fun onPlayerError(error: PlaybackException) = nextStream()
         })
 
-        // Phone: swipe up/down = change channel, tap = show name
+        // Phone: swipe up/down = channel, tap = channel list, long-press = favorite
         val gestures = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: MotionEvent) = true
-            override fun onSingleTapUp(e: MotionEvent): Boolean { showInfo(guide = true); return true }
-            override fun onLongPress(e: MotionEvent) = toggleFav()
+            override fun onSingleTapUp(e: MotionEvent): Boolean {
+                if (overlay.visibility == View.VISIBLE) closeOverlay() else openOverlay()
+                return true
+            }
+            override fun onLongPress(e: MotionEvent) = toggleFav(chans[index])
             override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
                 if (abs(vy) > abs(vx)) { change(if (vy < 0) 1 else -1); return true }
                 return false
@@ -75,6 +106,7 @@ class PlayerActivity : Activity() {
         play()
     }
 
+    // ------------------------------------------------------------------ playback
     private fun play() {
         streamIdx = 0
         forceHls = false
@@ -127,60 +159,177 @@ class PlayerActivity : Activity() {
         play()
     }
 
-    private fun showInfo(extra: String? = null, ms: Long = 5000, guide: Boolean = false) {
+    private fun playFrom(g: String, i: Int) {
+        val list = Store.inGroup(g)
+        if (list.isEmpty()) return
+        group = g
+        chans = list
+        index = i.coerceIn(0, chans.size - 1)
+        closeOverlay()
+        play()
+    }
+
+    private fun volume(up: Boolean) {
+        val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        am.adjustStreamVolume(
+            AudioManager.STREAM_MUSIC,
+            if (up) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER,
+            AudioManager.FLAG_SHOW_UI,
+        )
+    }
+
+    // ------------------------------------------------------------------ info box
+    private fun showInfo(extra: String? = null, ms: Long = 5000) {
         val ch = chans[index]
-        val hm = SimpleDateFormat("HH:mm", Locale.getDefault())
         val now = System.currentTimeMillis()
         info.text = buildString {
             if (Store.isFav(ch)) append("♥ ")
             append("${index + 1}. ${ch.name}${ch.label}\n")
-            append(ch.group)
-            val progs = Store.guide(ch, if (guide) 8 else 2)
-            if (progs.isNotEmpty()) append("\n")
-            progs.forEachIndexed { i, pr ->
-                val mark = if (i == 0 && pr.start <= now) "▶ 現在 Now" else "   "
-                append("\n$mark  ${hm.format(Date(pr.start))}  ${pr.title}")
+            append(group)
+            Store.guide(ch, 2).forEachIndexed { i, pr ->
+                val mark = if (i == 0 && pr.start <= now) "▶" else "  "
+                append("\n$mark ${hm.format(Date(pr.start))}  ${pr.title}")
             }
-            if (!guide) append("\n\n→ 節目表 Guide   長按OK 加入最愛 Hold OK = ♥")
             if (extra != null) append("\n\n").append(extra)
         }
         info.visibility = View.VISIBLE
         handler.removeCallbacks(hideInfo)
-        handler.postDelayed(hideInfo, if (guide) 10000 else ms)
+        handler.postDelayed(hideInfo, ms)
     }
 
-    private fun toggleFav() {
-        val on = Store.toggleFav(this, chans[index])
+    private fun toggleFav(ch: Channel) {
+        val on = Store.toggleFav(this, ch)
         Toast.makeText(this, if (on) "♥ 已加入最愛 Added to favorites" else "已移除最愛 Removed from favorites",
             Toast.LENGTH_SHORT).show()
-        showInfo()
+        if (overlay.visibility == View.VISIBLE) {
+            if (showingFolders) showFolders()
+            else {
+                val pos = focusedOverlayPos()
+                showChannelsInOverlay(overlayGroup, focusIndex = pos.coerceAtLeast(0))
+            }
+        } else {
+            showInfo()
+        }
+    }
+
+    // ------------------------------------------------------------------ see-through channel list
+    private fun openOverlay() {
+        info.visibility = View.GONE
+        overlay.visibility = View.VISIBLE
+        showChannelsInOverlay(group, focusIndex = index)
+        bumpOverlay()
+    }
+
+    private fun closeOverlay() {
+        handler.removeCallbacks(hideOverlay)
+        overlay.visibility = View.GONE
+    }
+
+    /** Hide the list after 12 seconds without a key press. */
+    private fun bumpOverlay() {
+        handler.removeCallbacks(hideOverlay)
+        handler.postDelayed(hideOverlay, 12_000)
+    }
+
+    private fun showChannelsInOverlay(g: String, focusIndex: Int = 0) {
+        showingFolders = false
+        overlayGroup = g
+        overlayTitle.text = g
+        overlayHint.text = "OK 播放 play · ← 資料夾 folders · 長按OK ♥ hold OK = favorite"
+        val list = Store.inGroup(g)
+        val now = System.currentTimeMillis()
+        overlayAdapter.set(list.mapIndexed { i, ch ->
+            val prog = Store.guide(ch, 1).firstOrNull()?.takeIf { it.start <= now }
+                ?.let { "▶ ${hm.format(Date(it.start))} ${it.title}" } ?: ch.label.trim()
+            val playing = g == group && i == index
+            OverlayAdapter.Item(
+                "${if (playing) "🔊 " else ""}${if (Store.isFav(ch)) "♥ " else ""}${i + 1}. ${ch.name}",
+                prog, ch.logo,
+                onClick = { playFrom(g, i) },
+                onLong = { toggleFav(ch) },
+            )
+        })
+        focusOverlay(focusIndex.coerceIn(0, (list.size - 1).coerceAtLeast(0)))
+    }
+
+    private fun showFolders() {
+        showingFolders = true
+        overlayTitle.text = "📂 資料夾 Folders"
+        overlayHint.text = "OK / → 打開 open"
+        val groups = Store.groups()
+        overlayAdapter.set(groups.map { (g, n) ->
+            OverlayAdapter.Item(g, "$n", null, onClick = { showChannelsInOverlay(g) })
+        })
+        focusOverlay(groups.indexOfFirst { it.first == overlayGroup }.coerceAtLeast(0))
+    }
+
+    private fun focusOverlay(pos: Int) {
+        overlayList.scrollToPosition(pos)
+        overlayList.post {
+            val v = overlayList.findViewHolderForAdapterPosition(pos)?.itemView
+            if (v != null) v.requestFocus()
+            else overlayList.post { overlayList.findViewHolderForAdapterPosition(pos)?.itemView?.requestFocus() }
+        }
+    }
+
+    private fun focusedOverlayPos(): Int {
+        val f = overlayList.focusedChild ?: return -1
+        return overlayList.getChildAdapterPosition(f)
+    }
+
+    // ------------------------------------------------------------------ remote control
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (overlay.visibility == View.VISIBLE && event.action == KeyEvent.ACTION_DOWN) bumpOverlay()
+        return super.dispatchKeyEvent(event)
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (overlay.visibility == View.VISIBLE) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> { if (!showingFolders) showFolders(); return true }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    if (showingFolders) {
+                        Store.groups().getOrNull(focusedOverlayPos())?.let { showChannelsInOverlay(it.first) }
+                    }
+                    return true
+                }
+                KeyEvent.KEYCODE_BACK -> {
+                    if (showingFolders) showChannelsInOverlay(overlayGroup) else closeOverlay()
+                    return true
+                }
+            }
+            return super.onKeyDown(keyCode, event)   // ↑/↓/OK move and choose inside the list
+        }
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP -> { change(-1); return true }
             KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN -> { change(1); return true }
-            KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_GUIDE -> { showInfo(guide = true); return true }
-            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_INFO -> { showInfo(); return true }
-            KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_BOOKMARK -> { toggleFav(); return true }
+            KeyEvent.KEYCODE_DPAD_LEFT -> { volume(false); return true }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> { volume(true); return true }
+            KeyEvent.KEYCODE_INFO, KeyEvent.KEYCODE_GUIDE -> { showInfo(); return true }
+            KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_BOOKMARK -> { toggleFav(chans[index]); return true }
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> { event.startTracking(); return true }
         }
         return super.onKeyDown(keyCode, event)
     }
 
     override fun onKeyLongPress(keyCode: Int, event: KeyEvent): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) { toggleFav(); return true }
+        if (overlay.visibility != View.VISIBLE &&
+            (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)
+        ) { toggleFav(chans[index]); return true }
         return super.onKeyLongPress(keyCode, event)
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
-            if (!event.isCanceled) showInfo()
+        if (overlay.visibility != View.VISIBLE &&
+            (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)
+        ) {
+            if (!event.isCanceled) openOverlay()      // short press = channel list
             return true
         }
         return super.onKeyUp(keyCode, event)
     }
 
+    // ------------------------------------------------------------------ lifecycle
     override fun onStart() {
         super.onStart()
         if (::player.isInitialized && player.playbackState == Player.STATE_IDLE) start()
@@ -194,7 +343,56 @@ class PlayerActivity : Activity() {
 
     override fun onDestroy() {
         handler.removeCallbacks(hideInfo)
+        handler.removeCallbacks(hideOverlay)
         if (::player.isInitialized) player.release()
         super.onDestroy()
+    }
+
+    // ------------------------------------------------------------------ list adapter
+    class OverlayAdapter : RecyclerView.Adapter<OverlayAdapter.VH>() {
+        class Item(
+            val title: String, val sub: String, val logo: String?,
+            val onClick: () -> Unit, val onLong: (() -> Unit)? = null,
+        )
+
+        private var items: List<Item> = emptyList()
+
+        fun set(list: List<Item>) {
+            items = list
+            @Suppress("NotifyDataSetChanged") notifyDataSetChanged()
+        }
+
+        class VH(v: View) : RecyclerView.ViewHolder(v) {
+            val logo: ImageView = v.findViewById(R.id.oLogo)
+            val title: TextView = v.findViewById(R.id.oTitle)
+            val sub: TextView = v.findViewById(R.id.oSub)
+        }
+
+        override fun onCreateViewHolder(p: ViewGroup, t: Int) =
+            VH(LayoutInflater.from(p.context).inflate(R.layout.overlay_row, p, false))
+
+        override fun getItemCount() = items.size
+
+        override fun onBindViewHolder(h: VH, pos: Int) {
+            val item = items[pos]
+            h.title.text = item.title
+            h.sub.text = item.sub
+            h.sub.visibility = if (item.sub.isEmpty()) View.GONE else View.VISIBLE
+            val logo = item.logo
+            if (logo == null) {
+                h.logo.visibility = View.GONE
+            } else {
+                h.logo.visibility = View.VISIBLE
+                if (logo.isEmpty()) {
+                    Glide.with(h.logo).clear(h.logo); h.logo.setImageDrawable(null)
+                } else {
+                    Glide.with(h.logo).load(logo).into(h.logo)
+                }
+            }
+            h.itemView.setOnClickListener { item.onClick() }
+            val long = item.onLong
+            if (long != null) h.itemView.setOnLongClickListener { long(); true }
+            else { h.itemView.setOnLongClickListener(null); h.itemView.isLongClickable = false }
+        }
     }
 }

@@ -38,7 +38,7 @@ class MainActivity : Activity() {
         list.layoutManager = LinearLayoutManager(this)
         list.adapter = adapter
 
-        findViewById<View>(R.id.btnSettings).setOnClickListener { settings() }
+        findViewById<View>(R.id.title).setOnClickListener { settings() }   // settings only from the title
 
         Store.load(this)
         Updater.schedule(this)
@@ -135,8 +135,8 @@ class MainActivity : Activity() {
             append("節目表 TV guide: ${date(Store.lastEpg(this@MainActivity))} ($guideCount channels)\n")
             if (Updater.isRunning) append("\n🔄 背景更新中 Updating in the background…\n")
             append("\n每天自動在背景檢查 Checked daily in the background.\n")
-            append("\n遙控器 Remote: ↑/↓ 換台 channel · OK 資訊 info · → 節目表 guide · 長按OK ♥ hold OK = favorite\n")
-            append("手機 Phone: 上下滑 swipe · 點一下 tap · 長按 ♥ long-press = favorite")
+            append("\n遙控器 Remote: ↑/↓ 換台 channel · ←/→ 音量 volume · OK 頻道清單 channel list · 長按OK ♥ hold OK = favorite\n")
+            append("手機 Phone: 上下滑 換台 swipe = channel · 點一下 清單 tap = list · 長按 ♥ long-press = favorite")
         }
         AlertDialog.Builder(this)
             .setTitle("⚙ STSA TV 設定 Settings")
