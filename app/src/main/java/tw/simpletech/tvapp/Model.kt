@@ -76,6 +76,7 @@ data class Prog(val start: Long, val stop: Long, val title: String)
 object Groups {
     const val FAV = "❤️ 我的最愛 Favorites"
     const val TW = "🇹🇼 台灣 Taiwan"
+    const val ZA = "🇿🇦 南非 South Africa"
     const val MY = "📌 我的清單 My playlists"
     const val RUGBY = "🏉 橄欖球 Rugby"
     const val SPORT = "⚽ 體育 Sports"
@@ -92,7 +93,7 @@ object Groups {
     /** English channels are kept only from these countries. */
     val COUNTRIES = setOf("za", "uk", "us", "au", "nz", "kr", "jp")
 
-    private val fixed = listOf(FAV, TW, MY, RUGBY, SPORT, NEWS, MOVIES, SERIES, KIDS, DOC, MUSIC, LIFE, ENT, OTHER)
+    private val fixed = listOf(FAV, TW, ZA, MY, RUGBY, SPORT, NEWS, MOVIES, SERIES, KIDS, DOC, MUSIC, LIFE, ENT, OTHER)
 
     fun order(g: String): Int = fixed.indexOf(g).let { if (it < 0) 99 else it }
 
