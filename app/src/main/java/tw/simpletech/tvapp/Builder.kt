@@ -150,6 +150,13 @@ object Builder {
     )
 
 
+    /** "TTV News HD" and "ttv news" count as the same name. */
+    private fun simple(n: String) = n.lowercase()
+        .replace(Regex("""\b(hd|sd|fhd|uhd|4k|tv|channel|live)\b"""), "")
+        .filter { it.isLetterOrDigit() }
+
+    fun sameName(a: String, b: String) = simple(a) == simple(b)
+
     private fun skip(e: M3u.Entry) = SKIP.any { e.cats.contains(it, true) } || BANNED.containsMatchIn(e.name)
 
     private fun load(path: String): List<M3u.Entry> =
@@ -169,9 +176,13 @@ object Builder {
         val zhoIds = zho.map { base(it.id) }.filter { it.isNotEmpty() }.toSet()
 
         val map = LinkedHashMap<String, Channel>()
+        val byName = HashMap<String, Channel>()      // folder + simplified name -> channel (no repeats)
         fun add(e: M3u.Entry, group: String, name: String = e.name, keyPrefix: String = "") {
             val k = keyPrefix + base(e.id).ifEmpty { e.name.lowercase() }
-            val ch = map.getOrPut(k) { Channel(k, name, group, e.logo) }
+            val sn = simple(name)
+            val nk = if (sn.length >= 2) "$group|$sn" else "key|$k"
+            val ch = map[k] ?: byName[nk] ?: Channel(k, name, group, e.logo).also { map[k] = it }
+            byName.putIfAbsent(nk, ch)
             if (ch.streams.none { it.url == e.stream.url }) ch.streams.add(e.stream)
             if (ch.logo.isEmpty()) ch.logo = e.logo
         }
@@ -205,12 +216,12 @@ object Builder {
                     .any { c == it || c.startsWith("$it ") || c.contains(it) && it.length > 3 } -> add(e, byName(e.name))
             }
         }
-        // 1e. YouTube Taiwan folder (official lives; 中天 never included)
+        // 1e. Official YouTube lives: extra (backup) links for Taiwan channels, same folder, no repeats
         for ((name, urls) in YOUTUBE) {
             if (BANNED.containsMatchIn(name)) continue
-            val ch = Channel("yt:$name", name, Groups.YT)
-            urls.forEach { u -> ch.streams.add(Stream("yt:$u")) }
-            map["yt:$name"] = ch
+            val ch = map.values.firstOrNull { it.group == Groups.TW && sameName(it.name, name) }
+                ?: Channel("yt:$name", name, Groups.TW).also { map["yt:$name"] = it }
+            urls.forEach { u -> if (ch.streams.none { it.url == "yt:$u" }) ch.streams.add(Stream("yt:$u")) }
         }
         // 1f. Adult folder (only visible when Admin is on)
         for (e in adult) if (!BANNED.containsMatchIn(e.name)) add(e, Groups.ADULT, keyPrefix = "x:")
@@ -286,7 +297,7 @@ object Checker {
     }
 
     private fun copyPrev(ch: Channel, prev: Channel) {
-        ch.streams.clear(); ch.streams.addAll(prev.streams.filter { !it.isYouTube || ch.group == Groups.YT })
+        ch.streams.clear(); ch.streams.addAll(prev.streams)
         if (ch.streams.isEmpty()) { ch.status = "dead"; return }
         ch.status = prev.status; ch.lastOk = prev.lastOk
     }
@@ -310,7 +321,7 @@ object Checker {
     private fun checkOne(ch: Channel, prev: Channel?, now: Long) {
         // try last working link first
         if (prev != null && prev.status != "dead") {
-            prev.streams.firstOrNull()?.takeIf { !it.isYouTube || ch.group == Groups.YT }?.let { p ->
+            prev.streams.firstOrNull()?.let { p ->
                 ch.streams.removeAll { it.url == p.url }
                 ch.streams.add(0, p)
             }
@@ -337,7 +348,7 @@ object Checker {
         if (ch.group == Groups.TW && Builder.mustIndex(ch.name) >= 0 && prev != null && prev.lastOk > 0 && prev.streams.isNotEmpty() &&
             now - prev.lastOk < TimeUnit.DAYS.toMillis(KEEP_DAYS)
         ) {
-            ch.streams.clear(); ch.streams.addAll(prev.streams.filter { !it.isYouTube })
+            ch.streams.clear(); ch.streams.addAll(prev.streams)
             if (ch.streams.isNotEmpty()) { ch.status = "kept"; ch.lastOk = prev.lastOk; return }
         }
         ch.status = "dead"

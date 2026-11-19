@@ -77,6 +77,10 @@ class PlayerActivity : Activity() {
         web.settings.mediaPlaybackRequiresUserGesture = false
         web.webViewClient = WebViewClient()
         web.webChromeClient = WebChromeClient()
+        web.addJavascriptInterface(object {
+            @android.webkit.JavascriptInterface
+            fun failed(code: Int) { runOnUiThread { if (web.visibility == View.VISIBLE) nextStream() } }
+        }, "STSA")
         overlay = findViewById(R.id.overlay)
         overlayTitle = findViewById(R.id.overlayTitle)
         overlayHint = findViewById(R.id.overlayHint)
@@ -160,10 +164,14 @@ class PlayerActivity : Activity() {
         view.visibility = View.GONE
         web.visibility = View.VISIBLE
         val id = s.extra ?: run { nextStream(); return }
+        // YouTube's own player, full screen, no controls/chat; if it refuses to play, try the next link
         val html = """<html><head><meta name="viewport" content="width=device-width,initial-scale=1">
-            <style>html,body{margin:0;height:100%;background:#000;overflow:hidden}iframe{border:0;width:100%;height:100%}</style>
-            </head><body><iframe src="https://www.youtube.com/embed/$id?autoplay=1&playsinline=1&controls=0&rel=0&modestbranding=1&iv_load_policy=3"
-            allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></body></html>"""
+            <style>html,body,#p{margin:0;width:100%;height:100%;background:#000;overflow:hidden}</style></head>
+            <body><div id="p"></div><script src="https://www.youtube.com/iframe_api"></script><script>
+            function onYouTubeIframeAPIReady(){new YT.Player('p',{width:'100%',height:'100%',videoId:'$id',
+            playerVars:{autoplay:1,controls:0,rel:0,modestbranding:1,iv_load_policy:3,playsinline:1,disablekb:1,fs:0,cc_load_policy:0},
+            events:{onReady:function(e){e.target.playVideo();},onError:function(e){STSA.failed(e.data);}}});}
+            </script></body></html>"""
         web.loadDataWithBaseURL("https://simpletechsa.github.io/", html, "text/html", "UTF-8", null)
     }
 
@@ -179,8 +187,9 @@ class PlayerActivity : Activity() {
 
     /** Current link failed: try it as HLS once, then the next link. */
     private fun nextStream() {
-        val u = chans[index].streams.getOrNull(streamIdx)?.url?.lowercase() ?: ""
-        if (!forceHls && !u.contains(".m3u") && !u.contains(".mpd")) {
+        val cur = chans[index].streams.getOrNull(streamIdx)
+        val u = cur?.url?.lowercase() ?: ""
+        if (cur?.isYouTube != true && !forceHls && !u.contains(".m3u") && !u.contains(".mpd")) {
             forceHls = true
         } else {
             forceHls = false
