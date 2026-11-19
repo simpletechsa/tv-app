@@ -206,13 +206,19 @@ object Builder {
 object Checker {
     private const val KEEP_DAYS = 7L
 
-    fun run(channels: List<Channel>, previous: Map<String, Channel>, progress: (Int, Int) -> Unit) {
+    /**
+     * [vpn] = a VPN is on. Then only rugby is really tested (and marked as needing the VPN);
+     * every other channel keeps its last result from a normal (no VPN) check.
+     */
+    fun run(channels: List<Channel>, previous: Map<String, Channel>, vpn: Boolean = false, progress: (Int, Int) -> Unit) {
         val pool = Executors.newFixedThreadPool(12)
         val done = AtomicInteger()
         val now = System.currentTimeMillis()
         for (ch in channels) {
             pool.execute {
-                try { checkOne(ch, previous[ch.key], now) } catch (e: Exception) { ch.status = "dead" }
+                try {
+                    if (vpn) checkWithVpn(ch, previous[ch.key], now) else checkOne(ch, previous[ch.key], now)
+                } catch (e: Exception) { ch.status = "dead" }
                 progress(done.incrementAndGet(), channels.size)
             }
         }
@@ -222,6 +228,27 @@ object Checker {
 
     private fun promote(ch: Channel, s: Stream) {
         ch.streams.remove(s); ch.streams.add(0, s)
+    }
+
+    private fun copyPrev(ch: Channel, prev: Channel) {
+        ch.streams.clear(); ch.streams.addAll(prev.streams)
+        ch.status = prev.status; ch.lastOk = prev.lastOk
+    }
+
+    private fun checkWithVpn(ch: Channel, prev: Channel?, now: Long) {
+        if (ch.group != Groups.RUGBY) {
+            if (prev != null) copyPrev(ch, prev) else ch.status = "dead"
+            return
+        }
+        for (s in ch.streams.toList()) {
+            if (!s.isYouTube && Net.check(s) == "ok") {
+                promote(ch, s)
+                ch.status = if (prev?.status == "ok") "ok" else "vpn"
+                ch.lastOk = now
+                return
+            }
+        }
+        if (prev != null) copyPrev(ch, prev) else ch.status = "dead"
     }
 
     private fun checkOne(ch: Channel, prev: Channel?, now: Long) {
@@ -249,6 +276,7 @@ object Checker {
         if (ch.group == Groups.RUGBY && geo != null) {
             promote(ch, geo); ch.status = "vpn"; return
         }
+        if (ch.group == Groups.RUGBY && prev?.status == "vpn") { copyPrev(ch, prev); return }
         // Free-to-air Taiwan channels: keep the last working link for a few days
         if (ch.group == Groups.TW && Builder.mustIndex(ch.name) >= 0 && prev != null && prev.lastOk > 0 && prev.streams.isNotEmpty() &&
             now - prev.lastOk < TimeUnit.DAYS.toMillis(KEEP_DAYS)
