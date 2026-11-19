@@ -107,7 +107,7 @@ object Store {
     // ------------------------------------------------------------ groups
     fun groups(): List<Pair<String, Int>> {
         val counts = channels.groupingBy { it.group }.eachCount().toMutableMap()
-        if (!adminOn) counts.remove(Groups.ADULT)
+        if (!adminOn) counts.remove(Groups.ADULT) else counts.putIfAbsent(Groups.ADULT, 0)   // locked folder always shown to admin
         val favCount = channels.count { isFav(it) && it.group != Groups.ADULT }
         if (favCount > 0) counts[Groups.FAV] = favCount
         return counts.toList().sortedWith(compareBy({ Groups.order(it.first) }, { it.first }))
@@ -123,6 +123,7 @@ object Store {
 
     // ------------------------------------------------------------ TV guide
     fun saveEpg(ctx: Context, data: Map<String, List<Prog>>) {
+        if (data.isEmpty() && epg.isNotEmpty()) return          // download failed: keep the old guide
         val o = JSONObject()
         data.forEach { (k, list) ->
             o.put(k, JSONArray().apply {

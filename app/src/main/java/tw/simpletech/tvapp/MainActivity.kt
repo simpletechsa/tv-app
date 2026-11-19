@@ -108,7 +108,12 @@ class MainActivity : Activity() {
         val now = System.currentTimeMillis()
         presses.addLast(now)
         while (presses.isNotEmpty() && now - presses.first() > 3000) presses.removeFirst()
-        if (presses.size >= 5) { presses.clear(); showChannels(Groups.ADULT) }
+        if (presses.size >= 5) {
+            presses.clear()
+            if (Store.inGroup(Groups.ADULT).isEmpty())
+                Toast.makeText(this, Lang.t("目前沒有可用頻道", "No working channels yet"), Toast.LENGTH_SHORT).show()
+            else showChannels(Groups.ADULT)
+        }
     }
 
     private fun toggleFav(ch: Channel, pos: Int) {
