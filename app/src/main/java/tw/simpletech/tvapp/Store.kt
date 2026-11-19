@@ -9,6 +9,24 @@ import java.io.File
 object Store {
     @Volatile var channels: List<Channel> = emptyList()
     @Volatile var epg: Map<String, List<Prog>> = emptyMap()
+    @Volatile var guideLogos: Map<String, String> = emptyMap()
+
+    /** Logo: from the channel list first, then from the TV guide. */
+    fun logoFor(ch: Channel): String = ch.logo.ifEmpty { guideLogos[ch.key] ?: "" }
+
+    fun saveLogos(ctx: Context, m: Map<String, String>) {
+        if (m.isEmpty()) return
+        val merged = guideLogos + m
+        writeAtomic(ctx, "logos.json", JSONObject(merged).toString())
+        guideLogos = merged
+    }
+
+    private fun loadLogos(ctx: Context) {
+        guideLogos = try {
+            val o = JSONObject(File(ctx.filesDir, "logos.json").readText())
+            o.keys().asSequence().associateWith { o.getString(it) }
+        } catch (e: Exception) { emptyMap() }
+    }
     private var favs: MutableSet<String> = mutableSetOf()
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences("tv", Context.MODE_PRIVATE)
@@ -29,6 +47,7 @@ object Store {
         }
         favs = (prefs(ctx).getStringSet("favs", emptySet()) ?: emptySet()).toMutableSet()
         loadEpg(ctx)
+        loadLogos(ctx)
     }
 
     fun save(ctx: Context, list: List<Channel>, viaVpn: Boolean = false) {

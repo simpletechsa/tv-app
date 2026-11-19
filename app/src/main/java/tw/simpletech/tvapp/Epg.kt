@@ -46,7 +46,11 @@ object Epg {
     }
 
     /** Downloads the guides and returns schedules keyed by our channel key. */
+    /** Channel logos found in the guide files (our channel key -> picture link). */
+    @Volatile var lastLogos: Map<String, String> = emptyMap()
+
     fun download(channels: List<Channel>, status: (String) -> Unit): Map<String, List<Prog>> {
+        val logos = HashMap<String, String>()
         val byAlias = HashMap<String, MutableList<String>>()
         channels.forEach { ch -> aliases(ch).forEach { a -> byAlias.getOrPut(a) { mutableListOf() } += ch.key } }
 
@@ -56,20 +60,23 @@ object Epg {
         val result = HashMap<String, MutableList<Prog>>()
 
         SOURCES.forEachIndexed { i, url ->
-            status("📅 下載節目表 Downloading TV guide ${i + 1}/${SOURCES.size}…")
+            status(Lang.t("📅 下載節目表 ", "📅 Downloading TV guide ") + "${i + 1}/${SOURCES.size}…")
             try {
                 Net.open(url, null, 15000, 60000) { _, _, input, _ ->
-                    if (input != null) parse(GZIPInputStream(BufferedInputStream(input, 65536)), byAlias, from, to, result)
+                    if (input != null) parse(GZIPInputStream(BufferedInputStream(input, 65536)), byAlias, from, to, result, logos)
                 }
             } catch (_: Exception) { /* this country's guide is unavailable; skip */ }
         }
+        lastLogos = logos
         return result.mapValues { (_, v) -> v.sortedBy { it.start }.distinctBy { it.start }.take(150) }
     }
 
     private fun parse(
         input: InputStream, byAlias: Map<String, List<String>>, from: Long, to: Long,
         out: MutableMap<String, MutableList<Prog>>,
+        logos: MutableMap<String, String>,
     ) {
+        var icon: String? = null
         val p = Xml.newPullParser()
         p.setInput(input, "UTF-8")
         val idToKeys = HashMap<String, List<String>>()   // xmltv channel id -> our keys
@@ -80,7 +87,9 @@ object Epg {
         while (ev != XmlPullParser.END_DOCUMENT) {
             when (ev) {
                 XmlPullParser.START_TAG -> when (p.name) {
+                    "icon" -> if (chId != null) icon = p.getAttributeValue(null, "src")
                     "channel" -> {
+                        icon = null
                         chId = p.getAttributeValue(null, "id")
                         chId?.let { id -> byAlias[norm(id)]?.let { idToKeys[id] = it } }
                     }
@@ -100,7 +109,14 @@ object Epg {
                     "title" -> if (progKeys != null && title == null) title = p.nextText().trim()
                 }
                 XmlPullParser.END_TAG -> when (p.name) {
-                    "channel" -> chId = null
+                    "channel" -> {
+                        val id = chId
+                        val src = icon
+                        if (id != null && !src.isNullOrBlank() && src.startsWith("http")) {
+                            idToKeys[id]?.forEach { k -> logos.putIfAbsent(k, src) }
+                        }
+                        chId = null
+                    }
                     "programme" -> {
                         val keys = progKeys
                         val t = title

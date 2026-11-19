@@ -120,7 +120,7 @@ class PlayerActivity : Activity() {
         val s = ch.streams.getOrNull(streamIdx)
         if (s == null) {
             player.stop()
-            showInfo("❌ 無法播放 Can't play this channel\n按 上/下 換台 Press up/down to change", 8000)
+            showInfo(Lang.t("❌ 無法播放\n按 上/下 換台", "❌ Can't play this channel\nPress up/down to change"), 8000)
             return
         }
         if (s.isYouTube) { openYouTube(s); return }
@@ -154,10 +154,10 @@ class PlayerActivity : Activity() {
         try {
             ytOpened = true
             startActivity(Intent(Intent.ACTION_VIEW, uri))
-            showInfo("▶ 在 YouTube 播放 Playing in YouTube\nOK 頻道清單 list · ↑/↓ 換台 change", 8000)
+            showInfo(Lang.t("▶ 在 YouTube 播放", "▶ Playing in YouTube"), 8000)
         } catch (e: Exception) {
             ytOpened = false
-            showInfo("❌ 需要 YouTube App — YouTube app needed", 8000)
+            showInfo(Lang.t("❌ 需要 YouTube App", "❌ YouTube app needed"), 8000)
         }
     }
 
@@ -169,7 +169,7 @@ class PlayerActivity : Activity() {
         } else {
             forceHls = false
             streamIdx++
-            if (streamIdx < chans[index].streams.size) showInfo("🔁 換備用連結 Trying backup link ${streamIdx + 1}")
+            if (streamIdx < chans[index].streams.size) showInfo(Lang.t("🔁 換備用連結 ", "🔁 Trying backup link ") + (streamIdx + 1))
         }
         start()
     }
@@ -195,8 +195,8 @@ class PlayerActivity : Activity() {
         val now = System.currentTimeMillis()
         info.text = buildString {
             if (Store.isFav(ch)) append("♥ ")
-            append("${index + 1}. ${ch.name}${ch.label}\n")
-            append(group)
+            append("${index + 1}. ${Lang.pick(ch.name)}${ch.label}\n")
+            append(Lang.pick(group))
             Store.guide(ch, 2).forEachIndexed { i, pr ->
                 val mark = if (i == 0 && pr.start <= now) "▶" else "  "
                 append("\n$mark ${hm.format(Date(pr.start))}  ${pr.title}")
@@ -210,7 +210,7 @@ class PlayerActivity : Activity() {
 
     private fun toggleFav(ch: Channel) {
         val on = Store.toggleFav(this, ch)
-        Toast.makeText(this, if (on) "♥ 已加入最愛 Added to favorites" else "已移除最愛 Removed from favorites",
+        Toast.makeText(this, if (on) Lang.t("♥ 已加入最愛", "♥ Added to favorites") else Lang.t("已移除最愛", "Removed from favorites"),
             Toast.LENGTH_SHORT).show()
         if (overlay.visibility == View.VISIBLE) {
             if (showingFolders) showFolders()
@@ -245,8 +245,8 @@ class PlayerActivity : Activity() {
     private fun showChannelsInOverlay(g: String, focusIndex: Int = 0) {
         showingFolders = false
         overlayGroup = g
-        overlayTitle.text = g
-        overlayHint.text = "OK 播放 play · ←/→ 翻頁 page · 返回 資料夾 Back = folders · 長按OK ♥"
+        overlayTitle.text = Lang.pick(g)
+        overlayHint.text = Lang.t("OK 播放 · ←/→ 翻頁 · 返回 = 資料夾 · 長按OK = ♥", "OK play · ←/→ page · Back = folders · hold OK = ♥")
         val list = Store.inGroup(g)
         val now = System.currentTimeMillis()
         overlayAdapter.set(list.mapIndexed { i, ch ->
@@ -254,8 +254,8 @@ class PlayerActivity : Activity() {
                 ?.let { "▶ ${hm.format(Date(it.start))} ${it.title}" } ?: ch.label.trim()
             val playing = g == group && i == index
             OverlayAdapter.Item(
-                "${if (playing) "🔊 " else ""}${if (Store.isFav(ch)) "♥ " else ""}${i + 1}. ${ch.name}",
-                prog, ch.logo,
+                "${if (playing) "🔊 " else ""}${if (Store.isFav(ch)) "♥ " else ""}${i + 1}. ${Lang.pick(ch.name)}",
+                prog, Store.logoFor(ch),
                 onClick = { playFrom(g, i) },
                 onLong = { toggleFav(ch) },
             )
@@ -265,11 +265,11 @@ class PlayerActivity : Activity() {
 
     private fun showFolders() {
         showingFolders = true
-        overlayTitle.text = "📂 資料夾 Folders"
-        overlayHint.text = "OK 打開 open · ←/→ 翻頁 page · 返回 關閉 Back = close"
+        overlayTitle.text = Lang.t("📂 資料夾", "📂 Folders")
+        overlayHint.text = Lang.t("OK 打開 · ←/→ 翻頁 · 返回 = 關閉", "OK open · ←/→ page · Back = close")
         val groups = Store.groups()
         overlayAdapter.set(groups.map { (g, n) ->
-            OverlayAdapter.Item(g, "$n", null, onClick = { showChannelsInOverlay(g) })
+            OverlayAdapter.Item(Lang.pick(g), "$n", null, onClick = { showChannelsInOverlay(g) })
         })
         focusOverlay(groups.indexOfFirst { it.first == overlayGroup }.coerceAtLeast(0))
     }
@@ -337,7 +337,7 @@ class PlayerActivity : Activity() {
     override fun onStart() {
         super.onStart()
         if (!::player.isInitialized) return
-        if (ytOpened) { showInfo("▶ YouTube\nOK 頻道清單 list · ↑/↓ 換台 change", 6000); return }   // came back from YouTube
+        if (ytOpened) { showInfo("▶ YouTube", 6000); return }   // came back from YouTube
         if (player.playbackState == Player.STATE_IDLE) start() else player.play()
     }
 
