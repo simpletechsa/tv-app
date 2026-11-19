@@ -21,7 +21,10 @@ object Updater {
     private val CHECK_EVERY = TimeUnit.HOURS.toMillis(20)
     private val GUIDE_EVERY = TimeUnit.HOURS.toMillis(20)
 
-    fun checkDue(ctx: Context) = System.currentTimeMillis() - Store.lastCheck(ctx) > CHECK_EVERY
+    fun checkDue(ctx: Context): Boolean {
+        val last = if (vpnOn(ctx) && Store.channels.isNotEmpty()) Store.lastVpnCheck(ctx) else Store.lastCheck(ctx)
+        return System.currentTimeMillis() - last > CHECK_EVERY
+    }
     fun guideDue(ctx: Context) = System.currentTimeMillis() - Store.lastEpg(ctx) > GUIDE_EVERY
 
     /** Full check of all links, then the TV guide. Returns false if one is already running. */
@@ -31,10 +34,11 @@ object Updater {
             val app = ctx.applicationContext
             val prev = Store.channels.associateBy { it.key }
             val fresh = Builder.build(Store.customUrls(app), status)
-            Checker.run(fresh, prev) { done, total ->
+            val vpn = vpnOn(app) && prev.isNotEmpty()      // very first check is always a full one
+            Checker.run(fresh, prev, vpn = vpn) { done, total ->
                 if (done % 10 == 0 || done == total) status("🔄 檢查連結中 Checking links: $done / $total")
             }
-            Store.save(app, fresh.filter { it.status != "dead" })
+            Store.save(app, fresh.filter { it.status != "dead" }, viaVpn = vpn)
             onUpdated?.invoke()
             guideInner(app, status)
             onUpdated?.invoke()
@@ -69,9 +73,8 @@ object Updater {
         }
     } catch (_: Exception) { false }
 
-    /** Whatever is due, quietly. Skipped while a VPN is on. */
+    /** Whatever is due, quietly. With a VPN on, only rugby is re-tested (see Checker). */
     fun quiet(ctx: Context) {
-        if (vpnOn(ctx)) return
         try {
             when {
                 checkDue(ctx) -> full(ctx) {}

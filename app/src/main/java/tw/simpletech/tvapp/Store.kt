@@ -31,13 +31,16 @@ object Store {
         loadEpg(ctx)
     }
 
-    fun save(ctx: Context, list: List<Channel>) {
+    fun save(ctx: Context, list: List<Channel>, viaVpn: Boolean = false) {
         val arr = JSONArray()
         list.forEach { arr.put(it.toJson()) }
         writeAtomic(ctx, "channels.json", arr.toString())
         channels = list
-        prefs(ctx).edit().putLong("lastCheck", System.currentTimeMillis()).apply()
+        // a VPN check only refreshes rugby, so it doesn't count as the daily full check
+        prefs(ctx).edit().putLong(if (viaVpn) "lastVpnCheck" else "lastCheck", System.currentTimeMillis()).apply()
     }
+
+    fun lastVpnCheck(ctx: Context) = prefs(ctx).getLong("lastVpnCheck", 0L)
 
     fun lastCheck(ctx: Context) = prefs(ctx).getLong("lastCheck", 0L)
 
