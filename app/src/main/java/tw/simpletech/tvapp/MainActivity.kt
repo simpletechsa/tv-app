@@ -45,7 +45,7 @@ class MainActivity : Activity() {
         showGroups()
         when {
             Store.channels.isEmpty() -> refresh()                                  // first install: show progress
-            Store.channels.any { Groups.order(it.group) == 99 } -> refresh()       // old app data: rebuild once
+            Store.channels.any { Groups.order(it.group) == 99 || it.key.startsWith("yt:") } -> refresh()       // old app data: rebuild once
             else -> { showDone(); quietUpdate() }                                  // normal: open now, check silently
         }
     }
