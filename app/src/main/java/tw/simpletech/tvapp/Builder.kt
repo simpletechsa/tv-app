@@ -166,7 +166,9 @@ object Builder {
         status(Lang.t("下載頻道清單…", "Downloading channel lists…"))
         val tw = M3u.parse(Net.getText("$BASE/countries/tw.m3u"))   // must work, else error
         val za = load("countries/za.m3u")
-        val adult = load("categories/xxx.m3u")
+        // adult: category list plus the full NSFW list as a second source
+        val adult = load("categories/xxx.m3u") +
+            load("index.nsfw.m3u").filter { it.cats.contains("xxx", true) }
         // Second source: Free-TV (only channels that are officially free). Grouped by country.
         val freeTv = try { M3u.parse(Net.getText(FREE_TV)) } catch (e: Exception) { emptyList() }
         val sports = load("categories/sports.m3u")
@@ -334,7 +336,7 @@ object Checker {
                 ch.status = "ok"; ch.lastOk = now; return
             }
             // full test (real video must come back); Taiwan + South Africa use the gentler test
-            when (Net.check(s, relaxed = ch.group == Groups.TW || ch.group == Groups.ZA)) {
+            when (Net.check(s, relaxed = ch.group == Groups.TW || ch.group == Groups.ZA || ch.group == Groups.ADULT)) {
                 "ok" -> { promote(ch, s); ch.status = "ok"; ch.lastOk = now; return }
                 "geo" -> if (geo == null) geo = s
             }

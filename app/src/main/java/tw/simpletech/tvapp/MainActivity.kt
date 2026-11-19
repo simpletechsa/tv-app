@@ -108,7 +108,12 @@ class MainActivity : Activity() {
         val now = System.currentTimeMillis()
         presses.addLast(now)
         while (presses.isNotEmpty() && now - presses.first() > 3000) presses.removeFirst()
-        if (presses.size >= 5) { presses.clear(); showChannels(Groups.ADULT) }
+        if (presses.size >= 5) {
+            presses.clear()
+            if (Store.inGroup(Groups.ADULT).isEmpty())
+                Toast.makeText(this, Lang.t("目前沒有可用頻道", "No working channels yet"), Toast.LENGTH_SHORT).show()
+            else showChannels(Groups.ADULT)
+        }
     }
 
     private fun toggleFav(ch: Channel, pos: Int) {
@@ -200,6 +205,7 @@ class MainActivity : Activity() {
         box.addView(button(t("🌐 語言：中文 → 切換為 English", "🌐 Language: English → switch to 中文")) {
             Lang.set(this, !Lang.zh); recreate()
         })
+        box.addView(button(t("▶ YouTube 播放器：", "▶ YouTube player: ") + youTubeAppName()) { pickYouTubeApp() })
         box.addView(button(if (Store.adminOn) t("🔐 管理員：開 → 關閉", "🔐 Admin: ON → turn off")
                            else t("🔐 管理員：關 → 開啟", "🔐 Admin: OFF → turn on")) {
             if (Store.adminOn) { Store.setAdmin(this, false); group = null; showGroups() }
@@ -240,6 +246,32 @@ class MainActivity : Activity() {
                 busy = false
             }
         }
+    }
+
+    private fun youTubeApps(): List<Pair<String, String>> {
+        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.youtube.com/watch?v=dQw4w9WgXcQ"))
+        return packageManager.queryIntentActivities(intent, 0)
+            .map { it.activityInfo.packageName to it.loadLabel(packageManager).toString() }
+            .filter { it.first != packageName }
+            .distinctBy { it.first }
+    }
+
+    private fun youTubeAppName(): String {
+        val pkg = Store.youTubeApp(this) ?: return Lang.t("內建", "Built-in")
+        return youTubeApps().firstOrNull { it.first == pkg }?.second ?: pkg
+    }
+
+    /** Optional: send YouTube backups to an app the user picks (e.g. their own ReVanced). */
+    private fun pickYouTubeApp() {
+        val apps = youTubeApps()
+        val labels = listOf(Lang.t("內建（在 STSA TV 內播放）", "Built-in (plays inside STSA TV)")) + apps.map { it.second }
+        AlertDialog.Builder(this)
+            .setTitle(Lang.t("▶ YouTube 播放器", "▶ YouTube player"))
+            .setItems(labels.toTypedArray()) { _, which ->
+                Store.setYouTubeApp(this, if (which == 0) null else apps[which - 1].first)
+            }
+            .setNegativeButton(Lang.t("取消", "Cancel"), null)
+            .show()
     }
 
     private fun passwordBox() = EditText(this).apply {
