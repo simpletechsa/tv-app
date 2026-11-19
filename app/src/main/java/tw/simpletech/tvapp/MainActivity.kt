@@ -38,7 +38,7 @@ class MainActivity : Activity() {
         list.layoutManager = LinearLayoutManager(this)
         list.adapter = adapter
 
-        findViewById<View>(R.id.btnSettings).setOnClickListener { settings() }
+        findViewById<View>(R.id.title).setOnClickListener { settings() }   // settings only from the title
 
         Store.load(this)
         Updater.schedule(this)
@@ -134,9 +134,10 @@ class MainActivity : Activity() {
             append("上次檢查 Last check: ${date(Store.lastCheck(this@MainActivity))}\n")
             append("節目表 TV guide: ${date(Store.lastEpg(this@MainActivity))} ($guideCount channels)\n")
             if (Updater.isRunning) append("\n🔄 背景更新中 Updating in the background…\n")
+            if (Updater.vpnOn(this@MainActivity)) append("\n⚠️ VPN 開啟中，暫停自動檢查 VPN on: auto check paused\n")
             append("\n每天自動在背景檢查 Checked daily in the background.\n")
-            append("\n遙控器 Remote: ↑/↓ 換台 channel · OK 資訊 info · → 節目表 guide · 長按OK ♥ hold OK = favorite\n")
-            append("手機 Phone: 上下滑 swipe · 點一下 tap · 長按 ♥ long-press = favorite")
+            append("\n遙控器 Remote: ↑/↓ 換台 channel · ←/→ 音量 volume · OK 頻道清單 channel list · 長按OK ♥ hold OK = favorite\n")
+            append("手機 Phone: 上下滑 換台 swipe = channel · 點一下 清單 tap = list · 長按 ♥ long-press = favorite")
         }
         AlertDialog.Builder(this)
             .setTitle("⚙ STSA TV 設定 Settings")
@@ -153,8 +154,18 @@ class MainActivity : Activity() {
     }
 
     /** Visible check (first install or the Check & fix button). */
-    private fun refresh() {
+    private fun refresh(force: Boolean = false) {
         if (busy) return
+        if (!force && Updater.vpnOn(this)) {
+            AlertDialog.Builder(this)
+                .setTitle("⚠️ VPN 已開啟 VPN is on")
+                .setMessage("VPN 開著檢查，台灣頻道可能會消失。請先關閉 Surfshark。\n\n" +
+                    "Checking with the VPN on can remove Taiwan channels. Please turn Surfshark off first.")
+                .setPositiveButton("仍要檢查 Check anyway") { _, _ -> refresh(force = true) }
+                .setNegativeButton("取消 Cancel", null)
+                .show()
+            return
+        }
         if (Updater.isRunning) { setStatus("🔄 已在背景更新中 Already updating in the background…"); return }
         busy = true
         setStatus("開始… Starting…")

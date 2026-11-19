@@ -69,7 +69,24 @@ object Net {
      * Tests a link the way a player would: playlist -> quality level -> first video piece.
      * Returns "ok" (real video came back), "geo" (blocked in this country) or "dead".
      */
+    private val ytCanonical = Regex("""<link rel="canonical" href="https://www\.youtube\.com/watch\?v=([\w-]{11})""")
+    private val ytLiveNow = Regex(""""isLiveNow"\s*:\s*true""")
+
+    /** Official YouTube live: returns the current live video id, or null if not live now. */
+    fun youTubeLive(url: String): String? = try {
+        val html = open(url.removePrefix("yt:"), Stream(url, userAgent = DESKTOP_UA), 15000, 30000) { _, _, input, _ ->
+            input?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
+        }
+        if (ytLiveNow.containsMatchIn(html)) ytCanonical.find(html)?.groupValues?.get(1) else null
+    } catch (e: Exception) {
+        null
+    }
+
+    private const val DESKTOP_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+
     fun check(s: Stream): String {
+        if (s.isYouTube) return if (youTubeLive(s.url) != null) "ok" else "dead"
         try {
             var r = get(s.url, s, 65536)
             if (blocked(r.code)) return "geo"

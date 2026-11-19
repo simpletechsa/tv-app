@@ -60,8 +60,18 @@ object Updater {
         try { Store.saveEpg(app, Epg.download(Store.channels, status)) } catch (_: Exception) { }
     }
 
-    /** Whatever is due, quietly. */
+    /** True when a VPN (e.g. Surfshark) is on. Checking then would give wrong results. */
+    fun vpnOn(ctx: Context): Boolean = try {
+        if (android.os.Build.VERSION.SDK_INT < 23) false else {
+            val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+            cm.getNetworkCapabilities(cm.activeNetwork)
+                ?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) == true
+        }
+    } catch (_: Exception) { false }
+
+    /** Whatever is due, quietly. Skipped while a VPN is on. */
     fun quiet(ctx: Context) {
+        if (vpnOn(ctx)) return
         try {
             when {
                 checkDue(ctx) -> full(ctx) {}

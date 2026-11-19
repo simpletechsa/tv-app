@@ -8,7 +8,10 @@ data class Stream(
     val referrer: String? = null,
     val userAgent: String? = null,
     val geo: Boolean = false,
-)
+    val extra: String? = null,      // YouTube: current live video id
+) {
+    val isYouTube get() = url.startsWith("yt:")
+}
 
 class Channel(
     val key: String,
@@ -20,7 +23,7 @@ class Channel(
     var lastOk: Long = 0L,
 ) {
     val label: String
-        get() = when (status) {
+        get() = if (streams.firstOrNull()?.isYouTube == true && status == "ok") "  (YouTube)" else when (status) {
             "kept" -> "  ⟲"
             "vpn" -> Builder.country(key.removePrefix("my:")).let { cc ->
                 if (cc.length != 2) "  (VPN)" else "  (VPN: ${Builder.flag(cc)} ${Builder.countryName(cc)})"
@@ -38,6 +41,7 @@ class Channel(
                     s.referrer?.let { put("r", it) }
                     s.userAgent?.let { put("a", it) }
                     put("g", s.geo)
+                    s.extra?.let { put("x", it) }
                 })
             }
         })
@@ -58,6 +62,7 @@ class Channel(
                         if (s.has("r")) s.getString("r") else null,
                         if (s.has("a")) s.getString("a") else null,
                         s.optBoolean("g"),
+                        if (s.has("x")) s.getString("x") else null,
                     )
                 )
             }
