@@ -85,8 +85,9 @@ object Net {
     private const val DESKTOP_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
         "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 
-    fun check(s: Stream): String {
-        if (s.isYouTube) return if (youTubeLive(s.url) != null) "ok" else "dead"
+    /** [relaxed] = accept a stream whose playlist answers, even if the first video piece test fails. */
+    fun check(s: Stream, relaxed: Boolean = false): String {
+        if (s.isYouTube) return "dead"
         try {
             var r = get(s.url, s, 65536)
             if (blocked(r.code)) return "geo"
@@ -96,11 +97,12 @@ object Net {
                 if (text.contains("#EXT-X-STREAM-INF")) {
                     val v = firstUri(text) ?: return "dead"
                     r = get(resolve(r.url, v), s, 65536)
-                    if (blocked(r.code)) return "geo"
-                    if (r.code !in 200..299) return "dead"
+                    if (blocked(r.code)) return if (relaxed) "ok" else "geo"
+                    if (r.code !in 200..299) return if (relaxed) "ok" else "dead"
                     text = r.text
-                    if (!text.contains("#EXTM3U")) return "dead"
+                    if (!text.contains("#EXTM3U")) return if (relaxed) "ok" else "dead"
                 }
+                if (relaxed) return "ok"
                 val seg = firstUri(text) ?: return "dead"
                 val sr = get(resolve(r.url, seg), s, 4096)
                 if (blocked(sr.code)) return "geo"
