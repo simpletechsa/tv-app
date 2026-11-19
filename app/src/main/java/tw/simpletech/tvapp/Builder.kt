@@ -61,7 +61,7 @@ object Builder {
     private const val BASE = "https://iptv-org.github.io/iptv"
 
     /** The ~20 free-to-air Taiwan channels (matched on the English or Chinese name). */
-    private val MUST = listOf(
+    val MUST = listOf(
         "台視 TTV" to "^(ttv|台視|臺視)( hd| main)?$",
         "台視新聞 TTV News" to "ttv news|台視新聞|臺視新聞",
         "台視財經 TTV Finance" to "ttv finance|台視財經|臺視財經",
@@ -86,6 +86,11 @@ object Builder {
     ).map { it.first to Regex(it.second, RegexOption.IGNORE_CASE) }
 
     private val SKIP = listOf("religious", "shop", "xxx")
+    private val RUGBY = Regex("""rugby|\bnrl\b""", RegexOption.IGNORE_CASE)
+    private val mustNames = MUST.map { it.first }
+
+    /** Position in the free-to-air list (for sorting the Taiwan folder), or -1. */
+    fun mustIndex(name: String) = mustNames.indexOf(name)
 
     private fun base(id: String) = id.substringBefore('@')
     fun country(id: String) = base(id).substringAfterLast('.', "").lowercase()
@@ -110,13 +115,13 @@ object Builder {
             if (ch.streams.none { it.url == e.stream.url }) ch.streams.add(e.stream)
             if (ch.logo.isEmpty()) ch.logo = e.logo
         }
-        fun rugby(e: M3u.Entry) = e.name.contains("rugby", true)
+        fun rugby(e: M3u.Entry) = RUGBY.containsMatchIn(e.name)
 
         // 1. Taiwan (all; "Taiwan only" links are fine because the check runs in Taiwan)
         for (e in tw) {
             if (skip(e)) continue
             val must = MUST.firstOrNull { m -> m.second.containsMatchIn(e.name) }
-            if (must != null) add(e, Groups.MUST, must.first) else add(e, Groups.TW)
+            if (must != null) add(e, Groups.TW, must.first) else add(e, Groups.TW)
         }
         // 2. Your own playlists
         for (url in customUrls) {
@@ -132,13 +137,15 @@ object Builder {
                 b in engIds || b in zhoIds -> add(e, Groups.SPORT)
             }
         }
-        // 4. English channels from your chosen countries only
+        // 3b. Rugby from any Chinese list too
+        for (e in zho) if (!skip(e) && !e.stream.geo && rugby(e)) add(e, Groups.RUGBY)
+        // 4. English channels from your chosen countries only, sorted into folders by type
         for (e in eng) {
             if (skip(e) || e.stream.geo) continue
             val cc = country(e.id)
             when {
                 rugby(e) -> add(e, Groups.RUGBY)
-                cc in Groups.ENGLISH -> add(e, Groups.english(cc))
+                cc in Groups.COUNTRIES -> add(e, Groups.byCategory(e.cats))
             }
         }
         return map.values.toMutableList()
@@ -179,7 +186,7 @@ object Checker {
             if (Net.works(s)) { promote(ch, s); ch.status = "ok"; ch.lastOk = now; return }
         }
         // Free-to-air Taiwan channels: keep the last working link for a few days
-        if (ch.group == Groups.MUST && prev != null && prev.lastOk > 0 && prev.streams.isNotEmpty() &&
+        if (ch.group == Groups.TW && Builder.mustIndex(ch.name) >= 0 && prev != null && prev.lastOk > 0 && prev.streams.isNotEmpty() &&
             now - prev.lastOk < TimeUnit.DAYS.toMillis(KEEP_DAYS)
         ) {
             ch.streams.clear(); ch.streams.addAll(prev.streams)

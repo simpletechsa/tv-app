@@ -84,9 +84,9 @@ object Epg {
                         chId = p.getAttributeValue(null, "id")
                         chId?.let { id -> byAlias[norm(id)]?.let { idToKeys[id] = it } }
                     }
-                    "display-name" -> if (chId != null) {
+                    "display-name" -> chId?.let { id ->
                         val keys = byAlias[norm(p.nextText())]
-                        if (keys != null) idToKeys[chId!!] = (idToKeys[chId!!] ?: emptyList()) + keys
+                        if (keys != null) idToKeys[id] = (idToKeys[id] ?: emptyList()) + keys
                     }
                     "programme" -> {
                         val keys = idToKeys[p.getAttributeValue(null, "channel") ?: ""]
