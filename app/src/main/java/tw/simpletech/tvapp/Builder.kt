@@ -144,6 +144,7 @@ object Builder {
     fun build(customUrls: List<String>, status: (String) -> Unit): MutableList<Channel> {
         status("下載頻道清單… Downloading channel lists…")
         val tw = M3u.parse(Net.getText("$BASE/countries/tw.m3u"))   // must work, else error
+        val za = load("countries/za.m3u")
         val sports = load("categories/sports.m3u")
         val eng = load("languages/eng.m3u")
         val zho = load("languages/zho.m3u")
@@ -170,6 +171,15 @@ object Builder {
             val existing = map.values.firstOrNull { it.name == name }
             val ch = existing ?: Channel("yt:$name", name, Groups.TW).also { map["yt:$name"] = it }
             urls.forEach { u -> ch.streams.add(Stream("yt:$u")) }
+        }
+        // 1c. South Africa: its own folder (rugby still goes to the rugby folder)
+        for (e in za) {
+            if (skip(e)) continue
+            when {
+                rugby(e) -> add(e, Groups.RUGBY)
+                e.stream.geo -> {}
+                else -> add(e, Groups.ZA)
+            }
         }
         // 2. Your own playlists
         for (url in customUrls) {
