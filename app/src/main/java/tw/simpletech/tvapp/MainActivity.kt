@@ -71,7 +71,12 @@ class MainActivity : Activity() {
     // ---------------------------------------------------------------- screens
     private fun showGroups(moveFocus: Boolean = true) {
         group = null
-        val rows = Store.groups().map { (g, n) -> Row(Lang.pick(g), "$n", null) { pos, _ -> groupPos = pos; showChannels(g) } }
+        val rows = Store.groups().map { (g, n) ->
+            Row(Lang.pick(g), if (g == Groups.ADULT) "" else "$n", null) { pos, _ ->
+                groupPos = pos
+                if (g == Groups.ADULT) secretPress() else showChannels(g)
+            }
+        }
         adapter.set(rows)
         if (moveFocus) focus(groupPos.coerceAtMost((rows.size - 1).coerceAtLeast(0)))
     }
@@ -96,7 +101,18 @@ class MainActivity : Activity() {
         if (!keepPos) focus(0) else list.scrollToPosition(pos.coerceAtLeast(0))
     }
 
+    /** Rated folder: OK pressed 5 times within 3 seconds opens it. Leaving it locks it again. */
+    private val presses = ArrayDeque<Long>()
+
+    private fun secretPress() {
+        val now = System.currentTimeMillis()
+        presses.addLast(now)
+        while (presses.isNotEmpty() && now - presses.first() > 3000) presses.removeFirst()
+        if (presses.size >= 5) { presses.clear(); showChannels(Groups.ADULT) }
+    }
+
     private fun toggleFav(ch: Channel, pos: Int) {
+        if (ch.group == Groups.ADULT) return
         val on = Store.toggleFav(this, ch)
         Toast.makeText(this, if (on) Lang.t("♥ 已加入最愛", "♥ Added to favorites") else Lang.t("已移除最愛", "Removed from favorites"),
             Toast.LENGTH_SHORT).show()
@@ -184,6 +200,12 @@ class MainActivity : Activity() {
         box.addView(button(t("🌐 語言：中文 → 切換為 English", "🌐 Language: English → switch to 中文")) {
             Lang.set(this, !Lang.zh); recreate()
         })
+        box.addView(button(if (Store.adminOn) t("🔐 管理員：開 → 關閉", "🔐 Admin: ON → turn off")
+                           else t("🔐 管理員：關 → 開啟", "🔐 Admin: OFF → turn on")) {
+            if (Store.adminOn) { Store.setAdmin(this, false); group = null; showGroups() }
+            else askPassword { Store.setAdmin(this, true); showGroups() }
+        })
+        if (Store.adminOn) box.addView(button(t("🔑 更改密碼", "🔑 Change password")) { changePassword() })
         dialog.show()
         first.requestFocus()
     }
@@ -219,6 +241,41 @@ class MainActivity : Activity() {
                 busy = false
             }
         }
+    }
+
+    private fun passwordBox() = EditText(this).apply {
+        inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+    }
+
+    private fun askPassword(onOk: () -> Unit) {
+        val input = passwordBox()
+        AlertDialog.Builder(this)
+            .setTitle(Lang.t("輸入密碼", "Enter password"))
+            .setView(input)
+            .setPositiveButton("OK") { _, _ ->
+                if (Store.checkPassword(this, input.text.toString())) onOk()
+                else Toast.makeText(this, Lang.t("密碼錯誤", "Wrong password"), Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(Lang.t("取消", "Cancel"), null)
+            .show()
+        input.requestFocus()
+    }
+
+    private fun changePassword() {
+        val input = passwordBox()
+        AlertDialog.Builder(this)
+            .setTitle(Lang.t("新密碼", "New password"))
+            .setView(input)
+            .setPositiveButton(Lang.t("儲存", "Save")) { _, _ ->
+                val pw = input.text.toString()
+                if (pw.length >= 4) {
+                    Store.setPassword(this, pw)
+                    Toast.makeText(this, Lang.t("已更改", "Changed"), Toast.LENGTH_SHORT).show()
+                } else Toast.makeText(this, Lang.t("至少 4 個字", "At least 4 characters"), Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(Lang.t("取消", "Cancel"), null)
+            .show()
+        input.requestFocus()
     }
 
     private fun editPlaylists() {

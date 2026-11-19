@@ -128,6 +128,28 @@ object Builder {
         }
     }
 
+    /** Official free YouTube lives of Taiwan channels (own folder, played inside the app). */
+    private val YOUTUBE = listOf(
+        "台視新聞 TTV News" to listOf("https://www.youtube.com/c/twlivenews/live", "https://www.youtube.com/c/ttvnewsview/live", "https://www.youtube.com/watch?v=xL0ch83RAK8", "https://www.youtube.com/watch?v=9iRAqBMakXY"),
+        "中視新聞 CTV News" to listOf("https://www.youtube.com/c/twctvnews/live", "https://www.youtube.com/@chinatvnews/live", "https://www.youtube.com/watch?v=TCnaIE_SAtM", "https://www.youtube.com/watch?v=baDV1O5EBP0"),
+        "華視新聞 CTS News" to listOf("https://www.youtube.com/@CtsTw/live", "https://www.youtube.com/watch?v=wM0g8EoUZ_E"),
+        "民視新聞 FTV News" to listOf("https://www.youtube.com/@FTV_News/live", "https://www.youtube.com/watch?v=ylYJSBUgaMA"),
+        "公視 PTS" to listOf("https://www.youtube.com/@PNNPTS/live", "https://www.youtube.com/watch?v=quwqlazU-c8"),
+        "客家電視 Hakka TV" to listOf("https://www.youtube.com/@HakkaTV/live", "https://www.youtube.com/@hakkatv/streams"),
+        "原住民族電視台 TITV" to listOf("https://www.youtube.com/@TITV/live", "https://www.youtube.com/@titv8932/live"),
+        "大愛一台 DaAi 1" to listOf("https://www.youtube.com/watch?v=MIqUplvSRWA", "https://www.youtube.com/@DaAiVideo/live"),
+        "大愛二台 DaAi 2" to listOf("https://www.youtube.com/watch?v=OKvWtVoDR8I"),
+        "三立新聞 SET News" to listOf("https://www.youtube.com/watch?v=oZdzzvxTfUY", "https://www.youtube.com/@setnews/live"),
+        "三立iNEWS SET iNews" to listOf("https://www.youtube.com/watch?v=CKjSm5ZeehE", "https://www.youtube.com/@setinews/live"),
+        "鏡新聞 Mirror News" to listOf("https://www.youtube.com/watch?v=5n0y6b0Q25o", "https://www.youtube.com/@mnews-tw/live"),
+        "寰宇新聞 Global News" to listOf("https://www.youtube.com/watch?v=6IquAgfvYmc"),
+        "寰宇新聞台灣 Global News Taiwan" to listOf("https://www.youtube.com/watch?v=w87VGpgd90U"),
+        "TVBS新聞 TVBS News" to listOf("https://www.youtube.com/watch?v=m_dhMSvUCIc"),
+        "東森新聞 EBC News" to listOf("https://www.youtube.com/watch?v=LuQ4S-i5zoE"),
+        "東森財經 EBC Finance" to listOf("https://www.youtube.com/watch?v=WHEPzbFA3hw"),
+    )
+
+
     private fun skip(e: M3u.Entry) = SKIP.any { e.cats.contains(it, true) } || BANNED.containsMatchIn(e.name)
 
     private fun load(path: String): List<M3u.Entry> =
@@ -137,6 +159,7 @@ object Builder {
         status(Lang.t("下載頻道清單…", "Downloading channel lists…"))
         val tw = M3u.parse(Net.getText("$BASE/countries/tw.m3u"))   // must work, else error
         val za = load("countries/za.m3u")
+        val adult = load("categories/xxx.m3u")
         // Second source: Free-TV (only channels that are officially free). Grouped by country.
         val freeTv = try { M3u.parse(Net.getText(FREE_TV)) } catch (e: Exception) { emptyList() }
         val sports = load("categories/sports.m3u")
@@ -182,6 +205,15 @@ object Builder {
                     .any { c == it || c.startsWith("$it ") || c.contains(it) && it.length > 3 } -> add(e, byName(e.name))
             }
         }
+        // 1e. YouTube Taiwan folder (official lives; 中天 never included)
+        for ((name, urls) in YOUTUBE) {
+            if (BANNED.containsMatchIn(name)) continue
+            val ch = Channel("yt:$name", name, Groups.YT)
+            urls.forEach { u -> ch.streams.add(Stream("yt:$u")) }
+            map["yt:$name"] = ch
+        }
+        // 1f. Adult folder (only visible when Admin is on)
+        for (e in adult) if (!BANNED.containsMatchIn(e.name)) add(e, Groups.ADULT, keyPrefix = "x:")
         // 2. Your own playlists
         for (url in customUrls) {
             val list = try { M3u.parse(Net.getText(url)) } catch (e: Exception) { emptyList() }
@@ -192,8 +224,7 @@ object Builder {
             if (skip(e) || country(e.id) == "tw") continue
             val b = base(e.id)
             when {
-                rugby(e) -> add(e, Groups.RUGBY)          // VPN-only rugby is kept, with its country shown
-                e.stream.geo -> {}
+                rugby(e) -> add(e, Groups.RUGBY)          // VPN-only rugby/sports are kept, with the country shown
                 b in engIds || b in zhoIds -> add(e, Groups.SPORT)
             }
         }
@@ -255,18 +286,18 @@ object Checker {
     }
 
     private fun copyPrev(ch: Channel, prev: Channel) {
-        ch.streams.clear(); ch.streams.addAll(prev.streams.filter { !it.isYouTube })
+        ch.streams.clear(); ch.streams.addAll(prev.streams.filter { !it.isYouTube || ch.group == Groups.YT })
         if (ch.streams.isEmpty()) { ch.status = "dead"; return }
         ch.status = prev.status; ch.lastOk = prev.lastOk
     }
 
     private fun checkWithVpn(ch: Channel, prev: Channel?, now: Long) {
-        if (ch.group != Groups.RUGBY) {
+        if (ch.group !in Groups.VPN_OK) {
             if (prev != null) copyPrev(ch, prev) else ch.status = "dead"
             return
         }
         for (s in ch.streams.toList()) {
-            if (!s.isYouTube && Net.check(s) == "ok") {
+            if (!s.isYouTube && Net.check(s, relaxed = true) == "ok") {
                 promote(ch, s)
                 ch.status = if (prev?.status == "ok") "ok" else "vpn"
                 ch.lastOk = now
@@ -279,26 +310,29 @@ object Checker {
     private fun checkOne(ch: Channel, prev: Channel?, now: Long) {
         // try last working link first
         if (prev != null && prev.status != "dead") {
-            prev.streams.firstOrNull()?.takeIf { !it.isYouTube }?.let { p ->
+            prev.streams.firstOrNull()?.takeIf { !it.isYouTube || ch.group == Groups.YT }?.let { p ->
                 ch.streams.removeAll { it.url == p.url }
                 ch.streams.add(0, p)
             }
         }
         var geo: Stream? = null
         for (s in ch.streams.toList()) {
-            if (s.isYouTube) continue
-            // Taiwan + South Africa: gentler test (playlist answers = OK), like the first version
-            val relaxed = ch.group == Groups.TW || ch.group == Groups.ZA
-            when (Net.check(s, relaxed)) {
+            if (s.isYouTube) {
+                val id = Net.youTubeLive(s.url) ?: continue
+                ch.streams.remove(s); ch.streams.add(0, s.copy(extra = id))
+                ch.status = "ok"; ch.lastOk = now; return
+            }
+            // gentle test for every channel (playlist answers = OK): find as many as possible
+            when (Net.check(s, relaxed = true)) {
                 "ok" -> { promote(ch, s); ch.status = "ok"; ch.lastOk = now; return }
                 "geo" -> if (geo == null) geo = s
             }
         }
         // Rugby that only works with a VPN: keep it and show which country to pick
-        if (ch.group == Groups.RUGBY && geo != null) {
+        if (ch.group in Groups.VPN_OK && geo != null) {
             promote(ch, geo); ch.status = "vpn"; return
         }
-        if (ch.group == Groups.RUGBY && prev?.status == "vpn") { copyPrev(ch, prev); return }
+        if (ch.group in Groups.VPN_OK && prev?.status == "vpn") { copyPrev(ch, prev); return }
         // Free-to-air Taiwan channels: keep the last working link for a few days
         if (ch.group == Groups.TW && Builder.mustIndex(ch.name) >= 0 && prev != null && prev.lastOk > 0 && prev.streams.isNotEmpty() &&
             now - prev.lastOk < TimeUnit.DAYS.toMillis(KEEP_DAYS)

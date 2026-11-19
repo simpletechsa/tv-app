@@ -48,6 +48,7 @@ object Store {
         favs = (prefs(ctx).getStringSet("favs", emptySet()) ?: emptySet()).toMutableSet()
         loadEpg(ctx)
         loadLogos(ctx)
+        loadAdmin(ctx)
     }
 
     fun save(ctx: Context, list: List<Channel>, viaVpn: Boolean = false) {
@@ -69,6 +70,25 @@ object Store {
     fun setCustomUrls(ctx: Context, text: String) =
         prefs(ctx).edit().putString("custom", text).apply()
 
+    // ------------------------------------------------------------ admin (rated folder)
+    @Volatile var adminOn = false
+        private set
+
+    fun loadAdmin(ctx: Context) { adminOn = prefs(ctx).getBoolean("admin", false) }
+    // Only a scrambled fingerprint (hash) of the password is kept, never the password itself.
+    private const val DEFAULT_KEY = "7c214c67cb512ff8beccab867f121cc921d55137c7dff2dbbd43c18811054568"
+
+    private fun hash(pw: String): String =
+        java.security.MessageDigest.getInstance("SHA-256")
+            .digest(("stsa-tv:" + pw).toByteArray()).joinToString("") { "%02x".format(it) }
+
+    fun checkPassword(ctx: Context, pw: String) = hash(pw) == (prefs(ctx).getString("pwh", null) ?: DEFAULT_KEY)
+    fun setPassword(ctx: Context, pw: String) = prefs(ctx).edit().putString("pwh", hash(pw)).apply()
+    fun setAdmin(ctx: Context, on: Boolean) {
+        adminOn = on
+        prefs(ctx).edit().putBoolean("admin", on).apply()
+    }
+
     // ------------------------------------------------------------ favorites
     fun isFav(ch: Channel) = ch.key in favs
 
@@ -82,13 +102,15 @@ object Store {
     // ------------------------------------------------------------ groups
     fun groups(): List<Pair<String, Int>> {
         val counts = channels.groupingBy { it.group }.eachCount().toMutableMap()
-        val favCount = channels.count { isFav(it) }
+        if (!adminOn) counts.remove(Groups.ADULT)
+        val favCount = channels.count { isFav(it) && it.group != Groups.ADULT }
         if (favCount > 0) counts[Groups.FAV] = favCount
         return counts.toList().sortedWith(compareBy({ Groups.order(it.first) }, { it.first }))
     }
 
     fun inGroup(g: String): List<Channel> {
-        val list = if (g == Groups.FAV) channels.filter { isFav(it) } else channels.filter { it.group == g }
+        val list = if (g == Groups.FAV) channels.filter { isFav(it) && it.group != Groups.ADULT }
+                   else channels.filter { it.group == g }
         return list.sortedWith(compareBy(
             { Builder.mustIndex(it.name).let { i -> if (i < 0) 999 else i } },
             { it.name.lowercase() }))
