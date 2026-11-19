@@ -19,6 +19,43 @@ object Epg {
 
     private val drop = Regex("""\b(hd|sd|fhd|uhd|4k|tv|channel|east|west)\b""")
 
+    /** Countries we want from the second guide source (globetvapp/epg on GitHub). */
+    private val GLOBE_COUNTRIES = listOf(
+        "taiwan", "south africa", "southafrica", "united kingdom", "uk", "usa", "united states",
+        "australia", "new zealand", "newzealand", "korea", "south korea", "japan",
+    )
+
+    /**
+     * Second TV guide source: globetvapp/epg (folders by country, e.g. Australia/australia1.xml).
+     * The file list is read from GitHub each time, so new files are picked up automatically.
+     */
+    private fun globeTvFiles(): List<String> = try {
+        val api = "https://api.github.com/repos/globetvapp/epg/contents"
+        val folders = org.json.JSONArray(Net.getText(api))
+        val out = ArrayList<String>()
+        for (i in 0 until folders.length()) {
+            val f = folders.getJSONObject(i)
+            if (f.optString("type") != "dir") continue
+            val name = f.optString("name")
+            if (name.lowercase().replace('_', ' ').replace('-', ' ') !in GLOBE_COUNTRIES) continue
+            try {
+                val files = org.json.JSONArray(Net.getText("$api/" + java.net.URLEncoder.encode(name, "UTF-8").replace("+", "%20")))
+                var taken = 0
+                for (j in 0 until files.length()) {
+                    val file = files.getJSONObject(j)
+                    val fn = file.optString("name")
+                    val dl = file.optString("download_url")
+                    if ((fn.endsWith(".xml") || fn.endsWith(".xml.gz")) && dl.startsWith("http") && taken < 4) {
+                        out += dl; taken++
+                    }
+                }
+            } catch (_: Exception) { }
+        }
+        out
+    } catch (_: Exception) {
+        emptyList()
+    }
+
     /** Simplify a name for matching: "BBC News HD" -> "bbcnews". */
     fun norm(s: String): String {
         val low = s.lowercase().substringBefore('@')
@@ -59,13 +96,18 @@ object Epg {
         val to = now + TimeUnit.DAYS.toMillis(4)
         val result = HashMap<String, MutableList<Prog>>()
 
-        SOURCES.forEachIndexed { i, url ->
-            status(Lang.t("📅 下載節目表 ", "📅 Downloading TV guide ") + "${i + 1}/${SOURCES.size}…")
+        val all = SOURCES + globeTvFiles()
+        all.forEachIndexed { i, url ->
+            status(Lang.t("📅 下載節目表 ", "📅 Downloading TV guide ") + "${i + 1}/${all.size}…")
             try {
                 Net.open(url, null, 15000, 60000) { _, _, input, _ ->
-                    if (input != null) parse(GZIPInputStream(BufferedInputStream(input, 65536)), byAlias, from, to, result, logos)
+                    if (input != null) {
+                        val buf = BufferedInputStream(input, 65536)
+                        val stream = if (url.endsWith(".gz")) GZIPInputStream(buf) else buf
+                        parse(stream, byAlias, from, to, result, logos)
+                    }
                 }
-            } catch (_: Exception) { /* this country's guide is unavailable; skip */ }
+            } catch (_: Exception) { /* this guide file is unavailable; skip */ }
         }
         lastLogos = logos
         return result.mapValues { (_, v) -> v.sortedBy { it.start }.distinctBy { it.start }.take(150) }
