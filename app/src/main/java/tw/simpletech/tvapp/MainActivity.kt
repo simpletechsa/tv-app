@@ -86,7 +86,7 @@ class MainActivity : Activity() {
             val prog = Store.guide(ch, 1).firstOrNull()
                 ?.takeIf { it.start <= System.currentTimeMillis() }
                 ?.let { "▶ ${now.format(Date(it.start))} ${it.title}" } ?: ""
-            Row("$heart${i + 1}. ${Lang.pick(ch.name)}${ch.label}", prog, ch.logo,
+            Row("$heart${i + 1}. ${Lang.pick(ch.name)}${ch.label}", prog, Store.logoFor(ch),
                 onLong = { pos -> toggleFav(ch, pos) }) { _, _ ->
                 startActivity(Intent(this, PlayerActivity::class.java).putExtra("group", g).putExtra("index", i))
             }

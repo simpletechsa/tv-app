@@ -67,7 +67,10 @@ object Updater {
     }
 
     private fun guideInner(app: Context, status: (String) -> Unit) {
-        try { Store.saveEpg(app, Epg.download(Store.channels, status)) } catch (_: Exception) { }
+        try {
+            Store.saveEpg(app, Epg.download(Store.channels, status))
+            Store.saveLogos(app, Epg.lastLogos)
+        } catch (_: Exception) { }
     }
 
     /** True when a VPN (e.g. Surfshark) is on. Checking then would give wrong results. */

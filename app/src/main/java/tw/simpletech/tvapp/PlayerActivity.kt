@@ -255,7 +255,7 @@ class PlayerActivity : Activity() {
             val playing = g == group && i == index
             OverlayAdapter.Item(
                 "${if (playing) "🔊 " else ""}${if (Store.isFav(ch)) "♥ " else ""}${i + 1}. ${Lang.pick(ch.name)}",
-                prog, ch.logo,
+                prog, Store.logoFor(ch),
                 onClick = { playFrom(g, i) },
                 onLong = { toggleFav(ch) },
             )

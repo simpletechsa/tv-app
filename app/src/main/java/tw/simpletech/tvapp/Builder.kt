@@ -209,6 +209,19 @@ object Builder {
                 cc in Groups.COUNTRIES -> add(e, Groups.byCategory(e.cats))
             }
         }
+        // Logo backup source: iptv-org's logo database, for channels that came without a logo
+        if (map.values.any { it.logo.isEmpty() }) {
+            try {
+                val arr = org.json.JSONArray(Net.getText("https://iptv-org.github.io/api/logos.json"))
+                val byId = HashMap<String, String>()
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    val id = o.optString("channel"); val url = o.optString("url")
+                    if (id.isNotEmpty() && url.startsWith("http")) byId.putIfAbsent(id, url)
+                }
+                map.values.filter { it.logo.isEmpty() }.forEach { ch -> byId[base(ch.key.removePrefix("my:"))]?.let { ch.logo = it } }
+            } catch (_: Exception) { /* logos are optional */ }
+        }
         return map.values.toMutableList()
     }
 }
