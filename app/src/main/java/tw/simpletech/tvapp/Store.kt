@@ -82,8 +82,8 @@ object Store {
         java.security.MessageDigest.getInstance("SHA-256")
             .digest(("stsa-tv:" + pw).toByteArray()).joinToString("") { "%02x".format(it) }
 
-    fun checkPassword(ctx: Context, pw: String) = hash(pw) == (prefs(ctx).getString("pwh", null) ?: DEFAULT_KEY)
-    fun setPassword(ctx: Context, pw: String) = prefs(ctx).edit().putString("pwh", hash(pw)).apply()
+    /** Fixed admin password (cannot be changed). */
+    fun checkPassword(pw: String) = hash(pw) == DEFAULT_KEY
     fun setAdmin(ctx: Context, on: Boolean) {
         adminOn = on
         prefs(ctx).edit().putBoolean("admin", on).apply()

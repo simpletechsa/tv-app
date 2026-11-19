@@ -205,7 +205,6 @@ class MainActivity : Activity() {
             if (Store.adminOn) { Store.setAdmin(this, false); group = null; showGroups() }
             else askPassword { Store.setAdmin(this, true); showGroups() }
         })
-        if (Store.adminOn) box.addView(button(t("🔑 更改密碼", "🔑 Change password")) { changePassword() })
         dialog.show()
         first.requestFocus()
     }
@@ -253,25 +252,8 @@ class MainActivity : Activity() {
             .setTitle(Lang.t("輸入密碼", "Enter password"))
             .setView(input)
             .setPositiveButton("OK") { _, _ ->
-                if (Store.checkPassword(this, input.text.toString())) onOk()
+                if (Store.checkPassword(input.text.toString())) onOk()
                 else Toast.makeText(this, Lang.t("密碼錯誤", "Wrong password"), Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton(Lang.t("取消", "Cancel"), null)
-            .show()
-        input.requestFocus()
-    }
-
-    private fun changePassword() {
-        val input = passwordBox()
-        AlertDialog.Builder(this)
-            .setTitle(Lang.t("新密碼", "New password"))
-            .setView(input)
-            .setPositiveButton(Lang.t("儲存", "Save")) { _, _ ->
-                val pw = input.text.toString()
-                if (pw.length >= 4) {
-                    Store.setPassword(this, pw)
-                    Toast.makeText(this, Lang.t("已更改", "Changed"), Toast.LENGTH_SHORT).show()
-                } else Toast.makeText(this, Lang.t("至少 4 個字", "At least 4 characters"), Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton(Lang.t("取消", "Cancel"), null)
             .show()
