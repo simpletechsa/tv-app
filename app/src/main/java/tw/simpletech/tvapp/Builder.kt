@@ -308,7 +308,7 @@ object Checker {
             return
         }
         for (s in ch.streams.toList()) {
-            if (!s.isYouTube && Net.check(s, relaxed = true) == "ok") {
+            if (!s.isYouTube && Net.check(s) == "ok") {
                 promote(ch, s)
                 ch.status = if (prev?.status == "ok") "ok" else "vpn"
                 ch.lastOk = now
@@ -333,8 +333,8 @@ object Checker {
                 ch.streams.remove(s); ch.streams.add(0, s.copy(extra = id))
                 ch.status = "ok"; ch.lastOk = now; return
             }
-            // gentle test for every channel (playlist answers = OK): find as many as possible
-            when (Net.check(s, relaxed = true)) {
+            // full test (real video must come back); Taiwan + South Africa use the gentler test
+            when (Net.check(s, relaxed = ch.group == Groups.TW || ch.group == Groups.ZA)) {
                 "ok" -> { promote(ch, s); ch.status = "ok"; ch.lastOk = now; return }
                 "geo" -> if (geo == null) geo = s
             }
