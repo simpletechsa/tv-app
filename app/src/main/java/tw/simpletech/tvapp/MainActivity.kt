@@ -47,7 +47,8 @@ class MainActivity : Activity() {
         showGroups()
         val age = System.currentTimeMillis() - Store.lastCheck(this)
         when {
-            Store.channels.isEmpty() || age > TimeUnit.HOURS.toMillis(20) -> refresh()
+            Store.channels.isEmpty() || age > TimeUnit.HOURS.toMillis(20) ||
+                Store.channels.any { Groups.order(it.group) == 99 } -> refresh()
             System.currentTimeMillis() - Store.lastEpg(this) > TimeUnit.HOURS.toMillis(24) -> refreshGuide()
             else -> showDone()
         }
