@@ -35,8 +35,14 @@ object Updater {
             val prev = Store.channels.associateBy { it.key }
             val fresh = Builder.build(Store.customUrls(app), status)
             val vpn = vpnOn(app) && prev.isNotEmpty()      // very first check is always a full one
+            val firstTime = prev.isEmpty()
             Checker.run(fresh, prev, vpn = vpn) { done, total ->
-                if (done % 10 == 0 || done == total) status("🔄 檢查連結中 Checking links: $done / $total")
+                if (done % 10 == 0 || done == total) status(Lang.t("🔄 檢查連結中：", "🔄 Checking links: ") + "$done / $total")
+                // very first check: show working channels right away instead of waiting for the end
+                if (firstTime && (done % 20 == 0 || done == total)) {
+                    Store.channels = fresh.filter { it.status == "ok" || it.status == "vpn" || it.status == "kept" }
+                    onUpdated?.invoke()
+                }
             }
             Store.save(app, fresh.filter { it.status != "dead" }, viaVpn = vpn)
             onUpdated?.invoke()

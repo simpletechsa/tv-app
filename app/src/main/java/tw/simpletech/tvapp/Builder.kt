@@ -113,15 +113,32 @@ object Builder {
 
     private fun base(id: String) = id.substringBefore('@')
     fun country(id: String) = base(id).substringAfterLast('.', "").lowercase()
+    private const val FREE_TV = "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8"
+
+    /** Free-TV has no categories: guess the folder from the channel name. */
+    private fun byName(n: String): String {
+        val l = n.lowercase()
+        return when {
+            l.contains("news") -> Groups.NEWS
+            l.contains("sport") -> Groups.SPORT
+            l.contains("kids") || l.contains("junior") || l.contains("cartoon") -> Groups.KIDS
+            l.contains("movie") || l.contains("cinema") || l.contains("film") -> Groups.MOVIES
+            l.contains("music") -> Groups.MUSIC
+            else -> Groups.ENT
+        }
+    }
+
     private fun skip(e: M3u.Entry) = SKIP.any { e.cats.contains(it, true) } || BANNED.containsMatchIn(e.name)
 
     private fun load(path: String): List<M3u.Entry> =
         try { M3u.parse(Net.getText("$BASE/$path")) } catch (e: Exception) { emptyList() }
 
     fun build(customUrls: List<String>, status: (String) -> Unit): MutableList<Channel> {
-        status("下載頻道清單… Downloading channel lists…")
+        status(Lang.t("下載頻道清單…", "Downloading channel lists…"))
         val tw = M3u.parse(Net.getText("$BASE/countries/tw.m3u"))   // must work, else error
         val za = load("countries/za.m3u")
+        // Second source: Free-TV (only channels that are officially free). Grouped by country.
+        val freeTv = try { M3u.parse(Net.getText(FREE_TV)) } catch (e: Exception) { emptyList() }
         val sports = load("categories/sports.m3u")
         val eng = load("languages/eng.m3u")
         val zho = load("languages/zho.m3u")
@@ -150,6 +167,19 @@ object Builder {
                 rugby(e) -> add(e, Groups.RUGBY)
                 e.stream.geo -> {}
                 else -> add(e, Groups.ZA)
+            }
+        }
+        // 1d. Free-TV: Taiwan, South Africa and the English-speaking countries (no YouTube links)
+        for (e in freeTv) {
+            if (skip(e) || e.stream.geo || e.stream.url.contains("youtu")) continue
+            val c = e.cats.lowercase()
+            when {
+                rugby(e) -> add(e, Groups.RUGBY)
+                c.contains("taiwan") -> add(e, Groups.TW,
+                    MUST.firstOrNull { m -> m.second.containsMatchIn(e.name) }?.first ?: e.name)
+                c.contains("south africa") -> add(e, Groups.ZA)
+                listOf("uk", "united kingdom", "usa", "united states", "australia", "new zealand")
+                    .any { c == it || c.startsWith("$it ") || c.contains(it) && it.length > 3 } -> add(e, byName(e.name))
             }
         }
         // 2. Your own playlists

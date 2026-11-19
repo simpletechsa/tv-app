@@ -56,7 +56,7 @@ object Epg {
         val result = HashMap<String, MutableList<Prog>>()
 
         SOURCES.forEachIndexed { i, url ->
-            status("📅 下載節目表 Downloading TV guide ${i + 1}/${SOURCES.size}…")
+            status(Lang.t("📅 下載節目表 ", "📅 Downloading TV guide ") + "${i + 1}/${SOURCES.size}…")
             try {
                 Net.open(url, null, 15000, 60000) { _, _, input, _ ->
                     if (input != null) parse(GZIPInputStream(BufferedInputStream(input, 65536)), byAlias, from, to, result)

@@ -40,6 +40,7 @@ class MainActivity : Activity() {
 
         findViewById<View>(R.id.title).setOnClickListener { settings() }   // settings only from the title
 
+        Lang.init(this)
         Store.load(this)
         Updater.schedule(this)
         showGroups()
@@ -70,7 +71,7 @@ class MainActivity : Activity() {
     // ---------------------------------------------------------------- screens
     private fun showGroups(moveFocus: Boolean = true) {
         group = null
-        val rows = Store.groups().map { (g, n) -> Row(g, "$n", null) { pos, _ -> groupPos = pos; showChannels(g) } }
+        val rows = Store.groups().map { (g, n) -> Row(Lang.pick(g), "$n", null) { pos, _ -> groupPos = pos; showChannels(g) } }
         adapter.set(rows)
         if (moveFocus) focus(groupPos.coerceAtMost((rows.size - 1).coerceAtLeast(0)))
     }
@@ -85,7 +86,7 @@ class MainActivity : Activity() {
             val prog = Store.guide(ch, 1).firstOrNull()
                 ?.takeIf { it.start <= System.currentTimeMillis() }
                 ?.let { "▶ ${now.format(Date(it.start))} ${it.title}" } ?: ""
-            Row("$heart${i + 1}. ${ch.name}${ch.label}", prog, ch.logo,
+            Row("$heart${i + 1}. ${Lang.pick(ch.name)}${ch.label}", prog, ch.logo,
                 onLong = { pos -> toggleFav(ch, pos) }) { _, _ ->
                 startActivity(Intent(this, PlayerActivity::class.java).putExtra("group", g).putExtra("index", i))
             }
@@ -97,7 +98,7 @@ class MainActivity : Activity() {
 
     private fun toggleFav(ch: Channel, pos: Int) {
         val on = Store.toggleFav(this, ch)
-        Toast.makeText(this, if (on) "♥ 已加入最愛 Added to favorites" else "已移除最愛 Removed from favorites",
+        Toast.makeText(this, if (on) Lang.t("♥ 已加入最愛", "♥ Added to favorites") else Lang.t("已移除最愛", "Removed from favorites"),
             Toast.LENGTH_SHORT).show()
         showChannels(group ?: return, keepPos = true)
         focus(pos.coerceAtMost(adapter.itemCount - 1))
@@ -139,24 +140,52 @@ class MainActivity : Activity() {
         fun date(t: Long) = if (t == 0L) "—" else fmt.format(Date(t))
         val chans = Store.channels
         val guideCount = chans.count { Store.epg.containsKey(it.key) }
+        val t = Lang::t
         val msg = buildString {
-            append("版本 Version: v$ver\n")
-            append("頻道 Channels: ${chans.size}\n")
-            append("上次檢查 Last check: ${date(Store.lastCheck(this@MainActivity))}\n")
-            append("節目表 TV guide: ${date(Store.lastEpg(this@MainActivity))} ($guideCount channels)\n")
-            if (Updater.isRunning) append("\n🔄 背景更新中 Updating in the background…\n")
-            if (Updater.vpnOn(this@MainActivity)) append("\n🔒 VPN 開啟中：只更新橄欖球 VPN on: only rugby is updated\n")
-            append("\n每天自動在背景檢查 Checked daily in the background.\n")
-            append("\n遙控器 Remote: ↑/↓ 換台 channel · OK 頻道清單 list (←/→ 翻頁 page, 返回 資料夾 Back = folders) · 長按OK ♥ hold OK = favorite · 音量用音量鍵 volume keys\n")
-            append("手機 Phone: 上下滑 換台 swipe = channel · 點一下 清單 tap = list · 長按 ♥ long-press = favorite")
+            append(t("版本：", "Version: ") + "v$ver\n")
+            append(t("頻道：", "Channels: ") + "${chans.size}\n")
+            append(t("上次檢查：", "Last check: ") + date(Store.lastCheck(this@MainActivity)) + "\n")
+            append(t("節目表：", "TV guide: ") + date(Store.lastEpg(this@MainActivity)) +
+                t("（$guideCount 個頻道）", " ($guideCount channels)") + "\n")
+            if (Updater.isRunning) append(t("\n🔄 背景更新中…\n", "\n🔄 Updating in the background…\n"))
+            if (Updater.vpnOn(this@MainActivity)) append(t("\n🔒 VPN 開啟中：只更新橄欖球\n", "\n🔒 VPN on: only rugby is updated\n"))
+            append(t("\n每天自動在背景檢查。\n", "\nChecked daily in the background.\n"))
+            append(t("\n遙控器：↑/↓ 換台 · OK 頻道清單（←/→ 翻頁，返回 = 資料夾）· 長按OK = ♥ · 音量用音量鍵\n",
+                "\nRemote: ↑/↓ channel · OK list (←/→ page, Back = folders) · hold OK = ♥ · volume keys for volume\n"))
+            append(t("手機：上下滑 換台 · 點一下 清單 · 長按 = ♥", "Phone: swipe = channel · tap = list · long-press = ♥"))
         }
-        AlertDialog.Builder(this)
-            .setTitle("⚙ STSA TV 設定 Settings")
-            .setMessage(msg)
-            .setPositiveButton("🔄 立即檢查 Check now") { _, _ -> refresh() }
-            .setNeutralButton("📌 我的清單 My playlists") { _, _ -> editPlaylists() }
-            .setNegativeButton("關閉 Close", null)
-            .show()
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val box = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(pad * 3 / 2, pad, pad * 3 / 2, pad)
+        }
+        val scroll = android.widget.ScrollView(this).apply { addView(box) }
+        box.addView(TextView(this).apply { text = msg; textSize = 15f; setPadding(0, 0, 0, pad) })
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(t("⚙ STSA TV 設定", "⚙ STSA TV Settings"))
+            .setView(scroll)
+            .setNegativeButton(t("關閉", "Close"), null)
+            .create()
+        fun button(label: String, action: () -> Unit) = TextView(this).apply {
+            text = label; textSize = 17f
+            setBackgroundResource(R.drawable.focus_bg)
+            setTextColor(getColor(R.color.text))
+            isFocusable = true; isClickable = true
+            setPadding(pad, pad * 2 / 3, pad, pad * 2 / 3)
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = pad / 2 }
+            setOnClickListener { dialog.dismiss(); action() }
+        }
+        val first = button(t("🔄 立即檢查", "🔄 Check now")) { refresh() }
+        box.addView(first)
+        box.addView(button(t("📌 我的清單", "📌 My playlists")) { editPlaylists() })
+        box.addView(button(t("🌐 語言：中文 → 切換為 English", "🌐 Language: English → switch to 中文")) {
+            Lang.set(this, !Lang.zh); recreate()
+        })
+        dialog.show()
+        first.requestFocus()
     }
 
     /** Updates the list without moving the selection. */
@@ -169,24 +198,24 @@ class MainActivity : Activity() {
         if (busy) return
         if (!force && Updater.vpnOn(this)) {
             val d = AlertDialog.Builder(this)
-                .setTitle("VPN 已開啟 VPN is on")
-                .setMessage("要用 VPN 檢查嗎？只會更新橄欖球頻道，台灣頻道不受影響。\n\n" +
-                    "Check with the VPN? Only rugby is updated; Taiwan channels stay as they are.")
-                .setPositiveButton("是 Yes") { _, _ -> refresh(force = true) }
-                .setNegativeButton("否 No", null)
+                .setTitle(Lang.t("VPN 已開啟", "VPN is on"))
+                .setMessage(Lang.t("要用 VPN 檢查嗎？只會更新橄欖球頻道，台灣頻道不受影響。",
+                    "Check with the VPN? Only rugby is updated; Taiwan channels stay as they are."))
+                .setPositiveButton(Lang.t("是", "Yes")) { _, _ -> refresh(force = true) }
+                .setNegativeButton(Lang.t("否", "No"), null)
                 .show()
             d.getButton(AlertDialog.BUTTON_POSITIVE)?.requestFocus()   // Yes is the default
             return
         }
         busy = true
-        setStatus("開始… Starting…")
+        setStatus(Lang.t("開始…", "Starting…"))
         thread {
             try {
                 Updater.full(applicationContext) { setStatus(it) }
                 busy = false
                 runOnUiThread { redraw(); showDone() }
             } catch (e: Exception) {
-                setStatus("❌ 失敗 Failed: ${e.message ?: e.javaClass.simpleName} — 請檢查網路 Check internet")
+                setStatus(Lang.t("❌ 失敗：", "❌ Failed: ") + (e.message ?: e.javaClass.simpleName) + Lang.t(" — 請檢查網路", " — check internet"))
                 busy = false
             }
         }
@@ -201,13 +230,13 @@ class MainActivity : Activity() {
             hint = "https://…/playlist.m3u"
         }
         AlertDialog.Builder(this)
-            .setTitle("我的播放清單 My playlists")
-            .setMessage("每行一個 M3U 連結 One M3U link per line")
+            .setTitle(Lang.t("我的播放清單", "My playlists"))
+            .setMessage(Lang.t("每行一個 M3U 連結", "One M3U link per line"))
             .setView(input)
-            .setPositiveButton("儲存並更新 Save & update") { _, _ ->
+            .setPositiveButton(Lang.t("儲存並更新", "Save & update")) { _, _ ->
                 Store.setCustomUrls(this, input.text.toString()); refresh()
             }
-            .setNegativeButton("取消 Cancel", null)
+            .setNegativeButton(Lang.t("取消", "Cancel"), null)
             .show()
     }
 
