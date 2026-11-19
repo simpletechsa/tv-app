@@ -35,6 +35,8 @@ class MainActivity : Activity() {
         setContentView(R.layout.activity_main)
         list = findViewById(R.id.list)
         status = findViewById(R.id.status)
+        val ver = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Exception) { "" }
+        findViewById<TextView>(R.id.title).text = "STSA TV  v$ver"
         list.layoutManager = LinearLayoutManager(this)
         list.adapter = adapter
 

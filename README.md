@@ -1,4 +1,4 @@
-# 我的電視 My TV
+# STSA TV
 
 Android phone + Android TV app that finds **free, publicly available** channels
 (Taiwan, rugby/sports, English), checks every link on the device, and replaces broken links.
