@@ -5,7 +5,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.media.AudioManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -190,15 +189,6 @@ class PlayerActivity : Activity() {
         play()
     }
 
-    private fun volume(up: Boolean) {
-        val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        am.adjustStreamVolume(
-            AudioManager.STREAM_MUSIC,
-            if (up) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER,
-            AudioManager.FLAG_SHOW_UI,
-        )
-    }
-
     // ------------------------------------------------------------------ info box
     private fun showInfo(extra: String? = null, ms: Long = 5000) {
         val ch = chans[index]
@@ -256,7 +246,7 @@ class PlayerActivity : Activity() {
         showingFolders = false
         overlayGroup = g
         overlayTitle.text = g
-        overlayHint.text = "OK 播放 play · ← 資料夾 folders · 長按OK ♥ hold OK = favorite"
+        overlayHint.text = "OK 播放 play · ←/→ 翻頁 page · 返回 資料夾 Back = folders · 長按OK ♥"
         val list = Store.inGroup(g)
         val now = System.currentTimeMillis()
         overlayAdapter.set(list.mapIndexed { i, ch ->
@@ -276,7 +266,7 @@ class PlayerActivity : Activity() {
     private fun showFolders() {
         showingFolders = true
         overlayTitle.text = "📂 資料夾 Folders"
-        overlayHint.text = "OK / → 打開 open"
+        overlayHint.text = "OK 打開 open · ←/→ 翻頁 page · 返回 關閉 Back = close"
         val groups = Store.groups()
         overlayAdapter.set(groups.map { (g, n) ->
             OverlayAdapter.Item(g, "$n", null, onClick = { showChannelsInOverlay(g) })
@@ -307,25 +297,18 @@ class PlayerActivity : Activity() {
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (overlay.visibility == View.VISIBLE) {
             when (keyCode) {
-                KeyEvent.KEYCODE_DPAD_LEFT -> { if (!showingFolders) showFolders(); return true }
-                KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                    if (showingFolders) {
-                        Store.groups().getOrNull(focusedOverlayPos())?.let { showChannelsInOverlay(it.first) }
-                    }
-                    return true
-                }
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_PAGE_UP -> { Paging.jump(overlayList, false); return true }
+                KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_PAGE_DOWN -> { Paging.jump(overlayList, true); return true }
                 KeyEvent.KEYCODE_BACK -> {
-                    if (showingFolders) showChannelsInOverlay(overlayGroup) else closeOverlay()
+                    if (showingFolders) closeOverlay() else showFolders()   // back = up one folder level
                     return true
                 }
             }
-            return super.onKeyDown(keyCode, event)   // ↑/↓/OK move and choose inside the list
+            return super.onKeyDown(keyCode, event)   // ↑/↓ move, OK chooses
         }
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP -> { change(-1); return true }
             KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN -> { change(1); return true }
-            KeyEvent.KEYCODE_DPAD_LEFT -> { volume(false); return true }
-            KeyEvent.KEYCODE_DPAD_RIGHT -> { volume(true); return true }
             KeyEvent.KEYCODE_INFO, KeyEvent.KEYCODE_GUIDE -> { showInfo(); return true }
             KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_BOOKMARK -> { toggleFav(chans[index]); return true }
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> { event.startTracking(); return true }
