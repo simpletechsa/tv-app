@@ -45,8 +45,7 @@ class PlayerActivity : Activity() {
     private lateinit var info: TextView
     private lateinit var webBox: android.widget.FrameLayout
 
-    /** Up to 3 YouTube channels kept paused in the background, so coming back doesn't restart (no repeat ads). */
-    private val webPool = LinkedHashMap<String, WebView>(4, 0.75f, true)
+    private val webPool get() = YtPool.map
     private var webCurrent: String? = null
     private lateinit var gestures: GestureDetector
     private lateinit var overlay: View
@@ -77,6 +76,7 @@ class PlayerActivity : Activity() {
         view = findViewById(R.id.playerView)
         info = findViewById(R.id.info)
         webBox = findViewById(R.id.webBox)
+        YtPool.onFailed = failCallback
         overlay = findViewById(R.id.overlay)
         overlayTitle = findViewById(R.id.overlayTitle)
         overlayHint = findViewById(R.id.overlayHint)
@@ -176,13 +176,20 @@ class PlayerActivity : Activity() {
         val existing = webPool[id]
         if (existing != null) {
             // same player as before: resume and jump to live, no new start (no repeat ads)
+            if (existing.parent !== webBox) {
+                (existing.parent as? android.view.ViewGroup)?.removeView(existing)
+                (existing.context as? android.content.MutableContextWrapper)?.baseContext = this
+                existing.setOnTouchListener { _, e -> gestures.onTouchEvent(e); true }
+                webBox.addView(existing, android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT, android.widget.FrameLayout.LayoutParams.MATCH_PARENT))
+            }
             existing.visibility = View.VISIBLE
             existing.evaluateJavascript("try{p.seekTo(p.getDuration(),true);p.playVideo()}catch(e){}", null)
         } else {
             webPool[id] = newYouTubeView(id)
-            while (webPool.size > 3) {
+            while (webPool.size > YtPool.MAX) {
                 val oldest = webPool.keys.first()
-                webPool.remove(oldest)?.let { webBox.removeView(it); it.destroy() }
+                webPool.remove(oldest)?.let { (it.parent as? android.view.ViewGroup)?.removeView(it); it.destroy() }
             }
         }
         webCurrent = id
@@ -190,7 +197,7 @@ class PlayerActivity : Activity() {
 
     @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
     private fun newYouTubeView(id: String): WebView {
-        val w = WebView(this)
+        val w = WebView(android.content.MutableContextWrapper(this))
         w.isFocusable = false
         w.isFocusableInTouchMode = false
         w.settings.javaScriptEnabled = true
@@ -201,7 +208,7 @@ class PlayerActivity : Activity() {
         w.setBackgroundColor(android.graphics.Color.BLACK)
         w.addJavascriptInterface(object {
             @android.webkit.JavascriptInterface
-            fun failed(code: Int) { runOnUiThread { if (webCurrent == id && webBox.visibility == View.VISIBLE) nextStream() } }
+            fun failed(code: Int) { YtPool.onFailed?.invoke(id) }
         }, "STSA")
         w.setOnTouchListener { _, e -> gestures.onTouchEvent(e); true }
         // YouTube's own player, full screen, no controls/chat; if it refuses to play, try the next link
@@ -216,6 +223,10 @@ class PlayerActivity : Activity() {
         webBox.addView(w, android.widget.FrameLayout.LayoutParams(
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT, android.widget.FrameLayout.LayoutParams.MATCH_PARENT))
         return w
+    }
+
+    private val failCallback: (String) -> Unit = { id ->
+        runOnUiThread { if (webCurrent == id && webBox.visibility == View.VISIBLE) nextStream() }
     }
 
     private fun pauseAllWeb() {
@@ -428,8 +439,11 @@ class PlayerActivity : Activity() {
         handler.removeCallbacks(hideInfo)
         handler.removeCallbacks(hideOverlay)
         if (::player.isInitialized) player.release()
-        webPool.values.forEach { it.destroy() }
-        webPool.clear()
+        // keep watched YouTube channels for this app session (no repeat ads); just detach them
+        pauseAllWeb()
+        if (YtPool.onFailed === failCallback) YtPool.onFailed = null
+        webBox.removeAllViews()
+        webPool.values.forEach { (it.context as? android.content.MutableContextWrapper)?.baseContext = applicationContext }
         super.onDestroy()
     }
 
