@@ -254,6 +254,12 @@ object Builder {
         }
         // 3b. Rugby from any Chinese list too
         for (e in zho) if (!skip(e) && rugby(e)) add(e, Groups.RUGBY)
+        // 3c. Free-to-air TV that shows rugby: Wallabies on Channel 9 (Australia), NPC on TVNZ 1 (New Zealand). VPN needed.
+        val rugbyTv = setOf("channel9.au@sydney", "tvnz1.nz")
+        for (e in load("countries/au.m3u") + load("countries/nz.m3u")) {
+            val id = e.id.lowercase()
+            if (rugbyTv.any { id == it || id.startsWith("$it@") }) add(e, Groups.RUGBY)
+        }
         // 4. English channels from your chosen countries only, sorted into folders by type
         for (e in eng) {
             if (skip(e)) continue
@@ -295,6 +301,12 @@ object Builder {
                     }
                 }
             } catch (_: Exception) { /* logos are optional */ }
+        }
+        // Pluto TV copies fill ad breaks with Pluto promos (cuts live matches): use them only as last backup
+        val pluto = Regex("""jmp2\.uk/plu-|pluto\.tv""", RegexOption.IGNORE_CASE)
+        map.values.forEach { ch ->
+            val (p, other) = ch.streams.partition { pluto.containsMatchIn(it.url) }
+            if (p.isNotEmpty() && other.isNotEmpty()) { ch.streams.clear(); ch.streams.addAll(other + p) }
         }
         return map.values.toMutableList()
     }
