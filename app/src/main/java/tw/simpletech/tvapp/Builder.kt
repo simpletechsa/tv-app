@@ -269,6 +269,25 @@ object Builder {
                     if (id.isNotEmpty() && url.startsWith("http")) byId.putIfAbsent(id, url)
                 }
                 map.values.filter { it.logo.isEmpty() }.forEach { ch -> byId[base(ch.key.removePrefix("my:"))]?.let { ch.logo = it } }
+                // Taiwan channels without a logo (e.g. YouTube-only): find them by name in the channel database
+                val twMissing = map.values.filter { it.group == Groups.TW && it.logo.isEmpty() }
+                if (twMissing.isNotEmpty()) {
+                    val chans = org.json.JSONArray(Net.getText("https://iptv-org.github.io/api/channels.json"))
+                    val idByName = HashMap<String, String>()
+                    for (i in 0 until chans.length()) {
+                        val o = chans.getJSONObject(i)
+                        if (o.optString("country") != "TW") continue
+                        val id = o.optString("id")
+                        val names = mutableListOf(o.optString("name"))
+                        o.optJSONArray("alt_names")?.let { a -> for (j in 0 until a.length()) names += a.optString(j) }
+                        names.map { simple(it) }.filter { it.length >= 2 }.forEach { idByName.putIfAbsent(it, id) }
+                    }
+                    twMissing.forEach { ch ->
+                        val parts = listOf(ch.name) + ch.name.split(' ')
+                        val id = parts.map { simple(it) }.firstNotNullOfOrNull { idByName[it] }
+                        id?.let { byId[it] }?.let { ch.logo = it }
+                    }
+                }
             } catch (_: Exception) { /* logos are optional */ }
         }
         return map.values.toMutableList()
