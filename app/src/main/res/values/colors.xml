@@ -9,4 +9,12 @@
     <color name="text">#FFF4F1E6</color>
     <color name="sub">#FFA9C2B5</color>
     <color name="logoBg">#FF1E5A44</color>
+    <!-- Classic blue (before v3.5) -->
+    <color name="cl_bg">#FF101826</color>
+    <color name="cl_row">#FF1B2638</color>
+    <color name="cl_focus">#FF2F6FED</color>
+    <color name="cl_accent">#FFFFD25A</color>
+    <color name="cl_text">#FFFFFFFF</color>
+    <color name="cl_sub">#FFB0BCD0</color>
+    <color name="cl_logoBg">#FF2A3550</color>
 </resources>

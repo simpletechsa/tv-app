@@ -4,8 +4,45 @@
         <item name="android:windowBackground">@color/bg</item>
         <item name="android:colorAccent">@color/accent</item>
         <item name="android:statusBarColor">@color/bg</item>
+        <item name="cBg">@color/bg</item>
+        <item name="cBar">@color/bar</item>
+        <item name="cLine">@color/accent</item>
+        <item name="cRow">@color/row</item>
+        <item name="cFocus">@color/focus</item>
+        <item name="cAccent">@color/accent</item>
+        <item name="cText">@color/text</item>
+        <item name="cSub">@color/sub</item>
+        <item name="cLogoBg">@color/logoBg</item>
+    </style>
+    <style name="AppTheme.Classic">
+        <item name="android:windowBackground">@color/cl_bg</item>
+        <item name="android:colorAccent">@color/cl_accent</item>
+        <item name="android:statusBarColor">@color/cl_bg</item>
+        <item name="cBg">@color/cl_bg</item>
+        <item name="cBar">@color/cl_bg</item>
+        <item name="cLine">@color/cl_bg</item>
+        <item name="cRow">@color/cl_row</item>
+        <item name="cFocus">@color/cl_focus</item>
+        <item name="cAccent">@color/cl_accent</item>
+        <item name="cText">@color/cl_text</item>
+        <item name="cSub">@color/cl_sub</item>
+        <item name="cLogoBg">@color/cl_logoBg</item>
     </style>
     <style name="PlayerTheme" parent="android:Theme.Material.NoActionBar.Fullscreen">
         <item name="android:windowBackground">@android:color/black</item>
+        <item name="cRow">@color/row</item>
+        <item name="cFocus">@color/focus</item>
+        <item name="cAccent">@color/accent</item>
+        <item name="cText">@color/text</item>
+        <item name="cSub">@color/sub</item>
+        <item name="cLogoBg">@color/logoBg</item>
+    </style>
+    <style name="PlayerTheme.Classic">
+        <item name="cRow">@color/cl_row</item>
+        <item name="cFocus">@color/cl_focus</item>
+        <item name="cAccent">@color/cl_accent</item>
+        <item name="cText">@color/cl_text</item>
+        <item name="cSub">@color/cl_sub</item>
+        <item name="cLogoBg">@color/cl_logoBg</item>
     </style>
 </resources>

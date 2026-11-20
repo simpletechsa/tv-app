@@ -29,7 +29,7 @@
             android:id="@+id/rowSub"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="@color/sub"
+            android:textColor="?attr/cSub"
             android:textSize="16sp" />
     </LinearLayout>
 
@@ -44,7 +44,7 @@
         android:layout_height="wrap_content"
         android:ellipsize="end"
         android:maxLines="2"
-        android:textColor="@color/text"
+        android:textColor="?attr/cText"
         android:textSize="22sp"
         android:textStyle="bold" />
 

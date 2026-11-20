@@ -14,6 +14,14 @@
         android:paddingEnd="20dp"
         android:paddingBottom="4dp">
 
+        <ImageView
+            android:id="@+id/appLogo"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:layout_marginEnd="8dp"
+            android:contentDescription="@null"
+            android:src="@mipmap/ic_launcher" />
+
         <TextView
             android:id="@+id/title"
             android:layout_width="wrap_content"
@@ -27,6 +35,27 @@
             android:paddingBottom="2dp"
             android:textSize="28sp"
             android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/folderName"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="?attr/cText"
+            android:textSize="26sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+
+        <TextView
+            android:id="@+id/folderCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:textColor="?attr/cSub"
+            android:textSize="16sp" />
     </LinearLayout>
 
     <TextView
@@ -38,7 +67,7 @@
         android:layout_height="wrap_content"
         android:paddingTop="8dp"
         android:paddingBottom="8dp"
-        android:textColor="@color/sub"
+        android:textColor="?attr/cSub"
         android:textSize="15sp" />
 
     <androidx.recyclerview.widget.RecyclerView

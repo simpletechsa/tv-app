@@ -27,6 +27,7 @@ A home TV app that finds free channels, checks them every day and replaces broke
 | 📅 | 節目表與頻道圖示 | TV guide and channel logos |
 | ❤️ | 我的最愛 | Favorites |
 | 🌐 | 中文 / English 切換 | Chinese / English switch |
+| 🎨 | 外觀：跳羚綠金 / 經典藍 | Look: Springbok / Classic |
 
 ## 🎮 遙控器 Remote
 

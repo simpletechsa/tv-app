@@ -30,7 +30,19 @@ class MainActivity : Activity() {
     private var groupPos = 0
     @Volatile private var busy = false
 
+    private lateinit var titleView: TextView
+    private lateinit var folderName: TextView
+    private lateinit var folderCount: TextView
+
+    /** Colour from the current look (Springbok or Classic). */
+    private fun col(attr: Int): Int {
+        val tv = android.util.TypedValue()
+        theme.resolveAttribute(attr, tv, true)
+        return tv.data
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        if (Store.classic(this)) setTheme(R.style.AppTheme_Classic)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         list = findViewById(R.id.list)
@@ -38,10 +50,13 @@ class MainActivity : Activity() {
         list.layoutManager = LinearLayoutManager(this)
         list.adapter = adapter
 
-        findViewById<TextView>(R.id.title).apply {
+        folderName = findViewById(R.id.folderName)
+        folderCount = findViewById(R.id.folderCount)
+        titleView = findViewById(R.id.title)
+        titleView.apply {
             val txt = android.text.SpannableString("STSA TV")
-            txt.setSpan(android.text.style.ForegroundColorSpan(getColor(R.color.accent)), 0, 4, 0)
-            txt.setSpan(android.text.style.ForegroundColorSpan(getColor(R.color.text)), 4, 7, 0)
+            txt.setSpan(android.text.style.ForegroundColorSpan(col(R.attr.cAccent)), 0, 4, 0)
+            txt.setSpan(android.text.style.ForegroundColorSpan(col(R.attr.cText)), 4, 7, 0)
             text = txt
             setOnClickListener { settings() }
         }   // settings only from the title
@@ -77,10 +92,12 @@ class MainActivity : Activity() {
     // ---------------------------------------------------------------- screens
     private fun showGroups(moveFocus: Boolean = true) {
         group = null
-        useGrid(true)
+        header(null, 0)
+        val classic = Store.classic(this)
+        useGrid(!classic)                       // Springbok = tiles, Classic = list
         val rows = Store.groups().map { (g, n) ->
-            Row(Lang.pick(g).replace(Regex("^\\S+\\s+"), ""), if (g == Groups.ADULT) "🔒" else "$n", null,
-                tile = true, onLong = { refreshFolder(g) }) { pos, _ ->
+            Row(Lang.pick(g), if (g == Groups.ADULT) "🔒" else "$n", null,
+                tile = !classic, onLong = { refreshFolder(g) }) { pos, _ ->
                 groupPos = pos
                 if (g == Groups.ADULT) secretPress() else showChannels(g)
             }
@@ -93,6 +110,7 @@ class MainActivity : Activity() {
         group = g
         val chans = Store.inGroup(g)
         if (chans.isEmpty()) { showGroups(moveFocus = !keepPos); return }
+        header(g, chans.size)
         useGrid(false)
         val now = SimpleDateFormat("HH:mm", Locale.getDefault())
         val numbers = Store.showNumbers(this)
@@ -139,6 +157,20 @@ class MainActivity : Activity() {
         if (pos < 0) return
         list.scrollToPosition(pos)
         list.post { list.findViewHolderForAdapterPosition(pos)?.itemView?.requestFocus() }
+    }
+
+    /** Top bar: STSA TV on the main page, STSA TV › folder inside a folder. */
+    private fun header(g: String?, count: Int) {
+        if (g == null) {
+            titleView.textSize = 28f
+            folderName.visibility = View.INVISIBLE
+            folderCount.text = ""
+        } else {
+            titleView.textSize = 20f
+            folderName.text = "›  " + Lang.pick(g)
+            folderName.visibility = View.VISIBLE
+            folderCount.text = Lang.t("$count 個頻道", "$count channels")
+        }
     }
 
     /** Folders as a grid of tiles, channels as a list. */
@@ -209,7 +241,7 @@ class MainActivity : Activity() {
         fun button(label: String, action: () -> Unit) = TextView(this).apply {
             text = label; textSize = 17f
             setBackgroundResource(R.drawable.focus_bg)
-            setTextColor(getColor(R.color.text))
+            setTextColor(col(R.attr.cText))
             isFocusable = true; isClickable = true
             setPadding(pad, pad * 2 / 3, pad, pad * 2 / 3)
             layoutParams = android.widget.LinearLayout.LayoutParams(
@@ -229,6 +261,11 @@ class MainActivity : Activity() {
         box.addView(button(if (nums) t("🔢 頻道編號：開 → 關閉", "🔢 Channel numbers: ON → turn off")
                            else t("🔢 頻道編號：關 → 開啟", "🔢 Channel numbers: OFF → turn on")) {
             Store.setShowNumbers(this, !nums); redraw()
+        })
+        val classic = Store.classic(this)
+        box.addView(button(if (classic) t("🎨 外觀：經典藍 → 切換為 跳羚綠金", "🎨 Look: Classic → switch to Springbok")
+                           else t("🎨 外觀：跳羚綠金 → 切換為 經典藍", "🎨 Look: Springbok → switch to Classic")) {
+            Store.setClassic(this, !classic); recreate()
         })
         box.addView(button(if (Store.adminOn) t("🔐 管理員：開 → 關閉", "🔐 Admin: ON → turn off")
                            else t("🔐 管理員：關 → 開啟", "🔐 Admin: OFF → turn on")) {

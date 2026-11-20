@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <attr name="cBg" format="color" />
+    <attr name="cBar" format="color" />
+    <attr name="cLine" format="color" />
+    <attr name="cRow" format="color" />
+    <attr name="cFocus" format="color" />
+    <attr name="cAccent" format="color" />
+    <attr name="cText" format="color" />
+    <attr name="cSub" format="color" />
+    <attr name="cLogoBg" format="color" />
+</resources>

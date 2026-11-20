@@ -70,6 +70,7 @@ class PlayerActivity : Activity() {
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
+        if (Store.classic(this)) setTheme(R.style.PlayerTheme_Classic)
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_player)
