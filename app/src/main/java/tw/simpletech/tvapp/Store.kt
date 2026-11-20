@@ -149,7 +149,7 @@ object Store {
         }
         writeAtomic(ctx, "epg.json", o.toString())
         epg = data
-        prefs(ctx).edit().putLong("lastEpg", System.currentTimeMillis()).apply()
+        prefs(ctx).edit().putLong("lastEpg", System.currentTimeMillis()).putInt("epgVer", EPG_VER).apply()
     }
 
     private fun loadEpg(ctx: Context) {
@@ -169,6 +169,10 @@ object Store {
     }
 
     fun lastEpg(ctx: Context) = prefs(ctx).getLong("lastEpg", 0L)
+
+    /** Raise when the guide sources change, so the guide is fetched again after the update. */
+    const val EPG_VER = 2
+    fun epgOld(ctx: Context) = prefs(ctx).getInt("epgVer", 1) < EPG_VER
 
     /** Programs from "now" onwards: first one is on now (if any). */
     fun guide(ch: Channel, count: Int): List<Prog> {

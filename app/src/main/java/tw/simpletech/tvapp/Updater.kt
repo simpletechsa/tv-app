@@ -25,7 +25,7 @@ object Updater {
         val last = if (vpnOn(ctx) && Store.channels.isNotEmpty()) Store.lastVpnCheck(ctx) else Store.lastCheck(ctx)
         return System.currentTimeMillis() - last > CHECK_EVERY
     }
-    fun guideDue(ctx: Context) = System.currentTimeMillis() - Store.lastEpg(ctx) > GUIDE_EVERY
+    fun guideDue(ctx: Context) = Store.epgOld(ctx) || System.currentTimeMillis() - Store.lastEpg(ctx) > GUIDE_EVERY
 
     /** Full check of all links, then the TV guide. Returns false if one is already running. */
     fun full(ctx: Context, status: (String) -> Unit): Boolean {
