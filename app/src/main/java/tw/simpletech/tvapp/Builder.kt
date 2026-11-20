@@ -82,7 +82,10 @@ object Builder {
         "公視3 PTS 3" to "pts ?3|公視 ?3",
         "客家電視 Hakka TV" to "hakka|客家電視",
         "原住民族電視台 TITV" to "titv|原住民|indigenous",
+        "國會頻道1 Parliament 1" to "國會頻道 ?(1|一)|parliament(ary)? ?(tv|channel)? ?1|ly ?tv ?1",
+        "國會頻道2 Parliament 2" to "國會頻道 ?(2|二)|parliament(ary)? ?(tv|channel)? ?2|ly ?tv ?2",
         "國會頻道 Parliamentary" to "國會頻道|parliament",
+        "TaiwanPlus" to "taiwan ?(plus|\\+)",
         "大愛一台 DaAi 1" to "^(daai ?(1|tv)|大愛一?台)$",
         "大愛二台 DaAi 2" to "^(daai ?2|大愛二台)$",
     ).map { it.first to Regex(it.second, RegexOption.IGNORE_CASE) }
@@ -130,6 +133,8 @@ object Builder {
 
     /** Official free YouTube lives of Taiwan channels (own folder, played inside the app). */
     private val YOUTUBE = listOf(
+        "TaiwanPlus" to listOf("https://www.youtube.com/@TaiwanPlusNews/live", "https://www.youtube.com/@taiwanplus/live", "https://www.youtube.com/@TaiwanPlusTV/live"),
+        "國會頻道1 Parliament 1" to listOf("https://www.youtube.com/@lytv1/live", "https://www.youtube.com/@LYChannel/live"),
         "台視新聞 TTV News" to listOf("https://www.youtube.com/c/twlivenews/live", "https://www.youtube.com/c/ttvnewsview/live", "https://www.youtube.com/watch?v=xL0ch83RAK8", "https://www.youtube.com/watch?v=9iRAqBMakXY"),
         "中視新聞 CTV News" to listOf("https://www.youtube.com/c/twctvnews/live", "https://www.youtube.com/@chinatvnews/live", "https://www.youtube.com/watch?v=TCnaIE_SAtM", "https://www.youtube.com/watch?v=baDV1O5EBP0"),
         "華視新聞 CTS News" to listOf("https://www.youtube.com/@CtsTw/live", "https://www.youtube.com/watch?v=wM0g8EoUZ_E"),

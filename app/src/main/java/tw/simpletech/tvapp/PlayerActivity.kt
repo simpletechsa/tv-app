@@ -43,7 +43,11 @@ class PlayerActivity : Activity() {
     private lateinit var player: ExoPlayer
     private lateinit var view: PlayerView
     private lateinit var info: TextView
-    private lateinit var web: WebView
+    private lateinit var webBox: android.widget.FrameLayout
+
+    private val webPool get() = YtPool.map
+    private var webCurrent: String? = null
+    private lateinit var gestures: GestureDetector
     private lateinit var overlay: View
     private lateinit var overlayTitle: TextView
     private lateinit var overlayHint: TextView
@@ -71,16 +75,8 @@ class PlayerActivity : Activity() {
         setContentView(R.layout.activity_player)
         view = findViewById(R.id.playerView)
         info = findViewById(R.id.info)
-        web = findViewById(R.id.web)
-        web.settings.javaScriptEnabled = true
-        web.settings.domStorageEnabled = true
-        web.settings.mediaPlaybackRequiresUserGesture = false
-        web.webViewClient = WebViewClient()
-        web.webChromeClient = WebChromeClient()
-        web.addJavascriptInterface(object {
-            @android.webkit.JavascriptInterface
-            fun failed(code: Int) { runOnUiThread { if (web.visibility == View.VISIBLE) nextStream() } }
-        }, "STSA")
+        webBox = findViewById(R.id.webBox)
+        YtPool.onFailed = failCallback
         overlay = findViewById(R.id.overlay)
         overlayTitle = findViewById(R.id.overlayTitle)
         overlayHint = findViewById(R.id.overlayHint)
@@ -102,7 +98,7 @@ class PlayerActivity : Activity() {
         })
 
         // Phone: swipe up/down = channel, tap = channel list, long-press = favorite
-        val gestures = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+        gestures = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: MotionEvent) = true
             override fun onSingleTapUp(e: MotionEvent): Boolean {
                 if (overlay.visibility == View.VISIBLE) closeOverlay() else openOverlay()
@@ -115,7 +111,6 @@ class PlayerActivity : Activity() {
             }
         })
         view.setOnTouchListener { _, e -> gestures.onTouchEvent(e); true }
-        web.setOnTouchListener { _, e -> gestures.onTouchEvent(e); true }
 
         play()
     }
@@ -174,28 +169,77 @@ class PlayerActivity : Activity() {
                 return
             } catch (e: Exception) { extOpened = false }      // app missing: fall back to built-in
         }
-        view.visibility = View.GONE
-        web.visibility = View.VISIBLE
         val id = s.extra ?: run { nextStream(); return }
+        view.visibility = View.GONE
+        webBox.visibility = View.VISIBLE
+        webPool.forEach { (k, w) -> if (k != id) { w.evaluateJavascript("try{p.pauseVideo()}catch(e){}", null); w.visibility = View.GONE } }
+        val existing = webPool[id]
+        if (existing != null) {
+            // same player as before: resume and jump to live, no new start (no repeat ads)
+            if (existing.parent !== webBox) {
+                (existing.parent as? android.view.ViewGroup)?.removeView(existing)
+                (existing.context as? android.content.MutableContextWrapper)?.baseContext = this
+                existing.setOnTouchListener { _, e -> gestures.onTouchEvent(e); true }
+                webBox.addView(existing, android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT, android.widget.FrameLayout.LayoutParams.MATCH_PARENT))
+            }
+            existing.visibility = View.VISIBLE
+            existing.evaluateJavascript("try{p.seekTo(p.getDuration(),true);p.playVideo()}catch(e){}", null)
+        } else {
+            webPool[id] = newYouTubeView(id)
+            while (webPool.size > YtPool.MAX) {
+                val oldest = webPool.keys.first()
+                webPool.remove(oldest)?.let { (it.parent as? android.view.ViewGroup)?.removeView(it); it.destroy() }
+            }
+        }
+        webCurrent = id
+    }
+
+    @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
+    private fun newYouTubeView(id: String): WebView {
+        val w = WebView(android.content.MutableContextWrapper(this))
+        w.isFocusable = false
+        w.isFocusableInTouchMode = false
+        w.settings.javaScriptEnabled = true
+        w.settings.domStorageEnabled = true
+        w.settings.mediaPlaybackRequiresUserGesture = false
+        w.webViewClient = WebViewClient()
+        w.webChromeClient = WebChromeClient()
+        w.setBackgroundColor(android.graphics.Color.BLACK)
+        w.addJavascriptInterface(object {
+            @android.webkit.JavascriptInterface
+            fun failed(code: Int) { YtPool.onFailed?.invoke(id) }
+        }, "STSA")
+        w.setOnTouchListener { _, e -> gestures.onTouchEvent(e); true }
         // YouTube's own player, full screen, no controls/chat; if it refuses to play, try the next link
         val html = """<html><head><meta name="viewport" content="width=device-width,initial-scale=1">
             <style>html,body,#p{margin:0;width:100%;height:100%;background:#000;overflow:hidden}</style></head>
             <body><div id="p"></div><script src="https://www.youtube.com/iframe_api"></script><script>
-            function onYouTubeIframeAPIReady(){new YT.Player('p',{width:'100%',height:'100%',videoId:'$id',
+            var p;function onYouTubeIframeAPIReady(){p=new YT.Player('p',{width:'100%',height:'100%',videoId:'$id',
             playerVars:{autoplay:1,controls:0,rel:0,modestbranding:1,iv_load_policy:3,playsinline:1,disablekb:1,fs:0,cc_load_policy:0},
             events:{onReady:function(e){e.target.playVideo();},onError:function(e){STSA.failed(e.data);}}});}
             </script></body></html>"""
-        web.loadDataWithBaseURL("https://simpletechsa.github.io/", html, "text/html", "UTF-8", null)
+        w.loadDataWithBaseURL("https://simpletechsa.github.io/", html, "text/html", "UTF-8", null)
+        webBox.addView(w, android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT, android.widget.FrameLayout.LayoutParams.MATCH_PARENT))
+        return w
     }
 
-    private var webPaused = false
+    private val failCallback: (String) -> Unit = { id ->
+        runOnUiThread { if (webCurrent == id && webBox.visibility == View.VISIBLE) nextStream() }
+    }
+
+    private fun pauseAllWeb() {
+        webPool.values.forEach { it.evaluateJavascript("try{p.pauseVideo()}catch(e){}", null) }
+    }
 
     private fun stopWeb() {
         extOpened = false
-        if (web.visibility == View.VISIBLE) {
-            web.loadUrl("about:blank")
-            web.visibility = View.GONE
+        if (webBox.visibility == View.VISIBLE) {
+            pauseAllWeb()                      // keep them (paused) for a quick, ad-free return
+            webBox.visibility = View.GONE
             view.visibility = View.VISIBLE
+            webCurrent = null
         }
     }
 
@@ -379,7 +423,7 @@ class PlayerActivity : Activity() {
         if (!::player.isInitialized) return
         if (chans[index].streams.getOrNull(streamIdx)?.isYouTube == true) {
             if (extOpened) { showInfo(); return }               // back from the chosen YouTube app
-            if (webPaused) { webPaused = false; start() }      // coming back: reload the YouTube live
+            webCurrent?.let { webPool[it]?.evaluateJavascript("try{p.seekTo(p.getDuration(),true);p.playVideo()}catch(e){}", null) }
             return
         }
         if (player.playbackState == Player.STATE_IDLE) start() else player.play()
@@ -388,14 +432,18 @@ class PlayerActivity : Activity() {
     override fun onStop() {
         super.onStop()
         if (::player.isInitialized) player.pause()
-        if (::web.isInitialized && web.visibility == View.VISIBLE) { web.loadUrl("about:blank"); webPaused = true }
+        if (::webBox.isInitialized) pauseAllWeb()
     }
 
     override fun onDestroy() {
         handler.removeCallbacks(hideInfo)
         handler.removeCallbacks(hideOverlay)
         if (::player.isInitialized) player.release()
-        if (::web.isInitialized) web.destroy()
+        // keep watched YouTube channels for this app session (no repeat ads); just detach them
+        pauseAllWeb()
+        if (YtPool.onFailed === failCallback) YtPool.onFailed = null
+        webBox.removeAllViews()
+        webPool.values.forEach { (it.context as? android.content.MutableContextWrapper)?.baseContext = applicationContext }
         super.onDestroy()
     }
 
