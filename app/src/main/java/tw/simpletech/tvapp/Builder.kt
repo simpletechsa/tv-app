@@ -296,6 +296,12 @@ object Builder {
                 }
             } catch (_: Exception) { /* logos are optional */ }
         }
+        // Pluto TV copies fill ad breaks with Pluto promos (cuts live matches): use them only as last backup
+        val pluto = Regex("""jmp2\.uk/plu-|pluto\.tv""", RegexOption.IGNORE_CASE)
+        map.values.forEach { ch ->
+            val (p, other) = ch.streams.partition { pluto.containsMatchIn(it.url) }
+            if (p.isNotEmpty() && other.isNotEmpty()) { ch.streams.clear(); ch.streams.addAll(other + p) }
+        }
         return map.values.toMutableList()
     }
 }
