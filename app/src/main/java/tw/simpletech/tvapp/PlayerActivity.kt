@@ -277,8 +277,8 @@ class PlayerActivity : Activity() {
         val ch = chans[index]
         val now = System.currentTimeMillis()
         info.text = buildString {
-            if (Store.isFav(ch)) append("♥ ")
-            append("${index + 1}. ${Lang.pick(ch.name)}${ch.label}\n")
+            if (Store.showNumbers(this@PlayerActivity)) append("${index + 1}. ")
+            append("${Lang.pick(ch.name)}${ch.label}\n")
             append(Lang.pick(group))
             Store.guide(ch, 2).forEachIndexed { i, pr ->
                 val mark = if (i == 0 && pr.start <= now) "▶" else "  "
@@ -294,7 +294,7 @@ class PlayerActivity : Activity() {
     private fun toggleFav(ch: Channel) {
         if (ch.group == Groups.ADULT) return
         val on = Store.toggleFav(this, ch)
-        Toast.makeText(this, if (on) Lang.t("♥ 已加入最愛", "♥ Added to favorites") else Lang.t("已移除最愛", "Removed from favorites"),
+        Toast.makeText(this, if (on) Lang.t("已加入最愛", "Added to favorites") else Lang.t("已移除最愛", "Removed from favorites"),
             Toast.LENGTH_SHORT).show()
         if (overlay.visibility == View.VISIBLE) {
             if (showingFolders) showFolders()
@@ -330,7 +330,7 @@ class PlayerActivity : Activity() {
         showingFolders = false
         overlayGroup = g
         overlayTitle.text = Lang.pick(g)
-        overlayHint.text = Lang.t("OK 播放 · ←/→ 翻頁 · 返回 = 資料夾 · 長按OK = ♥", "OK play · ←/→ page · Back = folders · hold OK = ♥")
+        overlayHint.text = Lang.t("OK 播放 · ←/→ 翻頁 · 返回 = 資料夾 · 長按OK = 最愛", "OK play · ←/→ page · Back = folders · hold OK = favorite")
         val list = Store.inGroup(g)
         val now = System.currentTimeMillis()
         overlayAdapter.set(list.mapIndexed { i, ch ->
@@ -338,8 +338,8 @@ class PlayerActivity : Activity() {
                 ?.let { "▶ ${hm.format(Date(it.start))} ${it.title}" } ?: ch.label.trim()
             val playing = g == group && i == index
             OverlayAdapter.Item(
-                "${if (playing) "🔊 " else ""}${if (Store.isFav(ch)) "♥ " else ""}${i + 1}. ${Lang.pick(ch.name)}",
-                prog, Store.logoFor(ch),
+                "${if (playing) "🔊 " else ""}${if (Store.showNumbers(this)) "${i + 1}. " else ""}${Lang.pick(ch.name)}",
+                prog, Store.logoFor(ch), fav = g != Groups.FAV && Store.isFav(ch),
                 onClick = { playFrom(g, i) },
                 onLong = if (ch.group == Groups.ADULT) null else ({ toggleFav(ch) }),
             )
@@ -451,6 +451,7 @@ class PlayerActivity : Activity() {
     class OverlayAdapter : RecyclerView.Adapter<OverlayAdapter.VH>() {
         class Item(
             val title: String, val sub: String, val logo: String?,
+            val fav: Boolean = false,
             val onClick: () -> Unit, val onLong: (() -> Unit)? = null,
         )
 
@@ -482,6 +483,7 @@ class PlayerActivity : Activity() {
                 h.logo.visibility = View.GONE
             } else {
                 h.logo.visibility = View.VISIBLE
+                h.logo.setBackgroundResource(if (item.fav) R.drawable.logo_fav else R.drawable.logo_bg)
                 if (logo.isEmpty()) {
                     Glide.with(h.logo).clear(h.logo); h.logo.setImageDrawable(null)
                 } else {
