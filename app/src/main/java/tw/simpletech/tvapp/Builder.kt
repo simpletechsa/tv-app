@@ -133,10 +133,16 @@ object Builder {
 
     /** Official free YouTube lives of Taiwan channels (own folder, played inside the app). */
     private val YOUTUBE = listOf(
+        // extra Taiwan 24h lives (only shown if they are live when checked)
+        "年代新聞 ERA News" to listOf("https://www.youtube.com/@eranewsnetwork/live", "https://www.youtube.com/@ERANEWS/live"),
+        "非凡新聞 USTV News" to listOf("https://www.youtube.com/@ustvnews/live", "https://www.youtube.com/@USTV/live"),
+        "台視財經 TTV Finance" to listOf("https://www.youtube.com/@ttvfinance/live"),
+        "公視台語台 PTS Taigi" to listOf("https://www.youtube.com/@PTSTaigi/live", "https://www.youtube.com/@ptstaigi/live"),
+        "三立財經 SET Finance" to listOf("https://www.youtube.com/@setmoney/live"),
         "TaiwanPlus" to listOf("https://www.youtube.com/@TaiwanPlusNews/live", "https://www.youtube.com/@taiwanplus/live", "https://www.youtube.com/@TaiwanPlusTV/live"),
         "國會頻道1 Parliament 1" to listOf("https://www.youtube.com/@lytv1/live", "https://www.youtube.com/@LYChannel/live"),
         "台視新聞 TTV News" to listOf("https://www.youtube.com/c/twlivenews/live", "https://www.youtube.com/c/ttvnewsview/live", "https://www.youtube.com/watch?v=xL0ch83RAK8", "https://www.youtube.com/watch?v=9iRAqBMakXY"),
-        "中視新聞 CTV News" to listOf("https://www.youtube.com/c/twctvnews/live", "https://www.youtube.com/@chinatvnews/live", "https://www.youtube.com/watch?v=TCnaIE_SAtM", "https://www.youtube.com/watch?v=baDV1O5EBP0"),
+        "中視新聞 CTV News" to listOf("https://www.youtube.com/channel/UCmH4q-YjeazayYCVHHkGAMA/live", "https://www.youtube.com/c/twctvnews/live", "https://www.youtube.com/@chinatvnews/live", "https://www.youtube.com/watch?v=TCnaIE_SAtM", "https://www.youtube.com/watch?v=baDV1O5EBP0"),
         "華視新聞 CTS News" to listOf("https://www.youtube.com/@CtsTw/live", "https://www.youtube.com/watch?v=wM0g8EoUZ_E"),
         "民視新聞 FTV News" to listOf("https://www.youtube.com/@FTV_News/live", "https://www.youtube.com/watch?v=ylYJSBUgaMA"),
         "公視 PTS" to listOf("https://www.youtube.com/@PNNPTS/live", "https://www.youtube.com/watch?v=quwqlazU-c8"),
@@ -149,7 +155,7 @@ object Builder {
         "鏡新聞 Mirror News" to listOf("https://www.youtube.com/watch?v=5n0y6b0Q25o", "https://www.youtube.com/@mnews-tw/live"),
         "寰宇新聞 Global News" to listOf("https://www.youtube.com/watch?v=6IquAgfvYmc"),
         "寰宇新聞台灣 Global News Taiwan" to listOf("https://www.youtube.com/watch?v=w87VGpgd90U"),
-        "TVBS新聞 TVBS News" to listOf("https://www.youtube.com/watch?v=m_dhMSvUCIc"),
+        "TVBS新聞 TVBS News" to listOf("https://www.youtube.com/@TVBSNEWS01/live", "https://www.youtube.com/watch?v=m_dhMSvUCIc"),
         "東森新聞 EBC News" to listOf("https://www.youtube.com/watch?v=LuQ4S-i5zoE"),
         "東森財經 EBC Finance" to listOf("https://www.youtube.com/watch?v=WHEPzbFA3hw"),
     )
