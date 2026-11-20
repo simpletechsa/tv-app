@@ -102,6 +102,10 @@ object Store {
     fun youTubeApp(ctx: Context): String? = prefs(ctx).getString("ytApp", null)
     fun setYouTubeApp(ctx: Context, pkg: String?) = prefs(ctx).edit().putString("ytApp", pkg).apply()
 
+    // ------------------------------------------------------------ channel numbers on/off
+    fun showNumbers(ctx: Context) = prefs(ctx).getBoolean("numbers", true)
+    fun setShowNumbers(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("numbers", on).apply()
+
     // ------------------------------------------------------------ favorites
     fun isFav(ch: Channel) = ch.key in favs
     fun isFavKey(key: String) = key in favs

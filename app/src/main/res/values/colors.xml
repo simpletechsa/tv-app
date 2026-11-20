@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="bg">#FF101826</color>
-    <color name="row">#FF1B2638</color>
-    <color name="focus">#FF2F6FED</color>
-    <color name="accent">#FFFFD25A</color>
-    <color name="text">#FFFFFFFF</color>
-    <color name="sub">#FFB0BCD0</color>
+    <!-- Springbok green and gold -->
+    <color name="bg">#FF0A2A1F</color>
+    <color name="bar">#FF006B3F</color>
+    <color name="row">#FF123D2D</color>
+    <color name="focus">#FF1B5A42</color>
+    <color name="accent">#FFFFB612</color>
+    <color name="text">#FFF4F1E6</color>
+    <color name="sub">#FFA9C2B5</color>
+    <color name="logoBg">#FF1E5A44</color>
 </resources>

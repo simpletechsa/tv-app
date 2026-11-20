@@ -38,7 +38,13 @@ class MainActivity : Activity() {
         list.layoutManager = LinearLayoutManager(this)
         list.adapter = adapter
 
-        findViewById<View>(R.id.title).setOnClickListener { settings() }   // settings only from the title
+        findViewById<TextView>(R.id.title).apply {
+            val txt = android.text.SpannableString("STSA TV")
+            txt.setSpan(android.text.style.ForegroundColorSpan(getColor(R.color.accent)), 0, 4, 0)
+            txt.setSpan(android.text.style.ForegroundColorSpan(getColor(R.color.text)), 4, 7, 0)
+            text = txt
+            setOnClickListener { settings() }
+        }   // settings only from the title
 
         Lang.init(this)
         Store.load(this)
@@ -71,8 +77,10 @@ class MainActivity : Activity() {
     // ---------------------------------------------------------------- screens
     private fun showGroups(moveFocus: Boolean = true) {
         group = null
+        useGrid(true)
         val rows = Store.groups().map { (g, n) ->
-            Row(Lang.pick(g), if (g == Groups.ADULT) "" else "$n", null, onLong = { refreshFolder(g) }) { pos, _ ->
+            Row(Lang.pick(g).replace(Regex("^\\S+\\s+"), ""), if (g == Groups.ADULT) "🔒" else "$n", null,
+                tile = true, onLong = { refreshFolder(g) }) { pos, _ ->
                 groupPos = pos
                 if (g == Groups.ADULT) secretPress() else showChannels(g)
             }
@@ -85,14 +93,16 @@ class MainActivity : Activity() {
         group = g
         val chans = Store.inGroup(g)
         if (chans.isEmpty()) { showGroups(moveFocus = !keepPos); return }
+        useGrid(false)
         val now = SimpleDateFormat("HH:mm", Locale.getDefault())
+        val numbers = Store.showNumbers(this)
         val rows = chans.mapIndexed { i, ch ->
-            val heart = if (Store.isFav(ch)) "♥ " else ""
+            val fav = g != Groups.FAV && Store.isFav(ch)      // inside Favorites: no marker
             val prog = Store.guide(ch, 1).firstOrNull()
                 ?.takeIf { it.start <= System.currentTimeMillis() }
                 ?.let { "▶ ${now.format(Date(it.start))} ${it.title}" } ?: ""
-            Row("$heart${i + 1}. ${Lang.pick(ch.name)}${ch.label}", prog, Store.logoFor(ch),
-                onLong = { pos -> toggleFav(ch, pos) }) { _, _ ->
+            Row("${if (numbers) "${i + 1}. " else ""}${Lang.pick(ch.name)}${ch.label}", prog, Store.logoFor(ch),
+                fav = fav, onLong = { pos -> toggleFav(ch, pos) }) { _, _ ->
                 startActivity(Intent(this, PlayerActivity::class.java).putExtra("group", g).putExtra("index", i))
             }
         }
@@ -119,7 +129,7 @@ class MainActivity : Activity() {
     private fun toggleFav(ch: Channel, pos: Int) {
         if (ch.group == Groups.ADULT) return
         val on = Store.toggleFav(this, ch)
-        Toast.makeText(this, if (on) Lang.t("♥ 已加入最愛", "♥ Added to favorites") else Lang.t("已移除最愛", "Removed from favorites"),
+        Toast.makeText(this, if (on) Lang.t("已加入最愛", "Added to favorites") else Lang.t("已移除最愛", "Removed from favorites"),
             Toast.LENGTH_SHORT).show()
         showChannels(group ?: return, keepPos = true)
         focus(pos.coerceAtMost(adapter.itemCount - 1))
@@ -131,8 +141,17 @@ class MainActivity : Activity() {
         list.post { list.findViewHolderForAdapterPosition(pos)?.itemView?.requestFocus() }
     }
 
+    /** Folders as a grid of tiles, channels as a list. */
+    private fun useGrid(grid: Boolean) {
+        val isGrid = list.layoutManager is androidx.recyclerview.widget.GridLayoutManager
+        if (grid == isGrid) return
+        val widthDp = resources.displayMetrics.widthPixels / resources.displayMetrics.density
+        list.layoutManager = if (grid) androidx.recyclerview.widget.GridLayoutManager(this, if (widthDp >= 900) 4 else 2)
+                             else LinearLayoutManager(this)
+    }
+
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
-        val inList = list.hasFocus()
+        val inList = list.hasFocus() && group != null      // folders grid: ←/→ move between tiles
         when (keyCode) {
             android.view.KeyEvent.KEYCODE_DPAD_LEFT, android.view.KeyEvent.KEYCODE_PAGE_UP ->
                 if (inList) { Paging.jump(list, false); return true }
@@ -171,9 +190,9 @@ class MainActivity : Activity() {
             if (Updater.isRunning) append(t("\n🔄 背景更新中…\n", "\n🔄 Updating in the background…\n"))
             if (Updater.vpnOn(this@MainActivity)) append(t("\n🔒 VPN 開啟中：只更新橄欖球\n", "\n🔒 VPN on: only rugby is updated\n"))
             append(t("\n每天自動在背景檢查。\n", "\nChecked daily in the background.\n"))
-            append(t("\n遙控器：↑/↓ 換台 · OK 頻道清單（←/→ 翻頁，返回 = 資料夾）· 長按OK = ♥ · 音量用音量鍵 · 資料夾上長按OK = 只更新該資料夾\n",
-                "\nRemote: ↑/↓ channel · OK list (←/→ page, Back = folders) · hold OK = ♥ · volume keys for volume · hold OK on a folder = update only that folder\n"))
-            append(t("手機：上下滑 換台 · 點一下 清單 · 長按 = ♥", "Phone: swipe = channel · tap = list · long-press = ♥"))
+            append(t("\n遙控器：↑/↓ 換台 · OK 頻道清單（←/→ 翻頁，返回 = 資料夾）· 長按OK = 最愛（台標金框）· 音量用音量鍵 · 資料夾上長按OK = 只更新該資料夾\n",
+                "\nRemote: ↑/↓ channel · OK list (←/→ page, Back = folders) · hold OK = favorite (gold frame on logo) · volume keys for volume · hold OK on a folder = update only that folder\n"))
+            append(t("手機：上下滑 換台 · 點一下 清單 · 長按 = 最愛", "Phone: swipe = channel · tap = list · long-press = favorite"))
         }
         val pad = (16 * resources.displayMetrics.density).toInt()
         val box = android.widget.LinearLayout(this).apply {
@@ -206,6 +225,11 @@ class MainActivity : Activity() {
             Lang.set(this, !Lang.zh); recreate()
         })
         box.addView(button(t("▶ YouTube 播放器：", "▶ YouTube player: ") + youTubeAppName()) { pickYouTubeApp() })
+        val nums = Store.showNumbers(this)
+        box.addView(button(if (nums) t("🔢 頻道編號：開 → 關閉", "🔢 Channel numbers: ON → turn off")
+                           else t("🔢 頻道編號：關 → 開啟", "🔢 Channel numbers: OFF → turn on")) {
+            Store.setShowNumbers(this, !nums); redraw()
+        })
         box.addView(button(if (Store.adminOn) t("🔐 管理員：開 → 關閉", "🔐 Admin: ON → turn off")
                            else t("🔐 管理員：關 → 開啟", "🔐 Admin: OFF → turn on")) {
             if (Store.adminOn) { Store.setAdmin(this, false); group = null; showGroups() }
@@ -335,6 +359,7 @@ class MainActivity : Activity() {
     // ---------------------------------------------------------------- list adapter
     class Row(
         val title: String, val sub: String, val logo: String?,
+        val fav: Boolean = false, val tile: Boolean = false,
         val onLong: ((Int) -> Unit)? = null, val onClick: (Int, View) -> Unit,
     )
 
@@ -352,8 +377,10 @@ class MainActivity : Activity() {
             val sub: TextView = v.findViewById(R.id.rowSub)
         }
 
+        override fun getItemViewType(position: Int) = if (rows[position].tile) 1 else 0
+
         override fun onCreateViewHolder(p: ViewGroup, t: Int) =
-            VH(LayoutInflater.from(p.context).inflate(R.layout.item_row, p, false))
+            VH(LayoutInflater.from(p.context).inflate(if (t == 1) R.layout.item_tile else R.layout.item_row, p, false))
 
         override fun getItemCount() = rows.size
 
@@ -365,6 +392,7 @@ class MainActivity : Activity() {
                 h.logo.visibility = View.GONE
             } else {
                 h.logo.visibility = View.VISIBLE
+                h.logo.setBackgroundResource(if (r.fav) R.drawable.logo_fav else R.drawable.logo_bg)
                 if (r.logo.isEmpty()) {
                     Glide.with(h.logo).clear(h.logo)
                     h.logo.setImageResource(R.mipmap.ic_launcher)
