@@ -14,10 +14,25 @@ import java.util.zip.GZIPInputStream
  * Channels are matched by name, so not every channel will have a guide.
  */
 object Epg {
-    private val SOURCES = listOf("TW1", "ZA1", "UK1", "US2", "AU1", "NZ1", "KR1", "JP1")
-        .map { "https://epgshare01.online/epgshare01/epg_ripper_$it.xml.gz" }
+    /**
+     * Guide files, best first. A channel takes its guide from the first file that has it.
+     * 1) my-epg: 119 Taiwan channels, Traditional Chinese titles, updated every 6 hours (GitHub).
+     * 2) epg.pw: free guides per country.
+     * 3) epgshare01 + globetvapp: wider backup.
+     */
+    private val SOURCES = listOf(
+        "https://raw.githubusercontent.com/XinMan939/my-epg/gh-pages/epg.xml.gz",
+    ) + listOf("TW", "ZA", "GB", "US", "AU", "NZ").map { "https://epg.pw/xmltv/epg_$it.xml.gz" } +
+        listOf("TW1", "ZA1", "UK1", "US2", "AU1", "NZ1", "KR1", "JP1")
+            .map { "https://epgshare01.online/epgshare01/epg_ripper_$it.xml.gz" }
 
     private val drop = Regex("""\b(hd|sd|fhd|uhd|4k|tv|channel|east|west)\b""")
+
+    /** Traditional -> Simplified pairs, only used to match names (what you see stays Traditional). */
+    private val T2S: Map<Char, Char> = "視视聞闻華华臺台東东緯纬來来樂乐戲戏劇剧綜综電电灣湾體体國国會会經经財财衛卫愛爱爾尔達达鏡镜間间頻频業业衆众龍龙運运動动際际語语號号藝艺專专實实紀纪錄录鳳凤亞亚歐欧無无線线兒儿畫画廳厅網网寶宝貝贝時时學学習习傳传統统園园遊游鬥斗爭争雙双黃黄陽阳開开發发現现歷历書书師师員员門门風风雲云頭头條条報报導导點点創创區区權权證证貨货幣币銀银務务機机場场億亿萬万個个們们這这裡里說说話话讀读寫写飛飞車车馬马魚鱼鳥鸟豬猪雞鸡麼么為为與与對对後后從从當当還还過过關关隊队賽赛籃篮盃杯錦锦標标聯联盟盟壹壹採采環环樂乐韓韩僑侨灣湾窩窝選选購购物物".let { s ->
+        (0 until s.length - 1 step 2).associate { s[it] to s[it + 1] }
+    }
+    private val NUM = mapOf('①' to '1', '②' to '2', '③' to '3', 'Ⅰ' to '1', 'Ⅱ' to '2', 'Ⅲ' to '3', 'Ⅳ' to '4')
 
     /** Countries we want from the second guide source (globetvapp/epg on GitHub). */
     private val GLOBE_COUNTRIES = listOf(
@@ -56,12 +71,17 @@ object Epg {
         emptyList()
     }
 
-    /** Simplify a name for matching: "BBC News HD" -> "bbcnews". */
+    /** Simplify a name for matching: "BBC News HD" -> "bbcnews", "華視新聞台" / "华视新闻" -> "华视新闻". */
     fun norm(s: String): String {
-        val low = s.lowercase().substringBefore('@')
+        var low = s.lowercase().substringBefore('@')
             .replace(Regex("""\.[a-z]{2}$"""), "")          // remove ".uk" style country end
             .replace('.', ' ').replace('_', ' ')
-        return drop.replace(low, " ").filter { it.isLetterOrDigit() }
+        low = low.map { NUM[it] ?: T2S[it] ?: it }.joinToString("").replace("一台", "1").replace("二台", "2")
+        var r = drop.replace(low, " ").filter { it.isLetterOrDigit() }
+        if (r.length > 3 && r.any { it.code > 0x2E80 }) {
+            for (suf in listOf("电视台", "台")) if (r.endsWith(suf) && r.length - suf.length >= 2) { r = r.dropLast(suf.length); break }
+        }
+        return r
     }
 
     private fun aliases(ch: Channel): Set<String> {
@@ -74,6 +94,10 @@ object Epg {
         return out.filter { it.length >= 2 }.toSet()
     }
 
+    /** Second try, only if nothing matched exactly: "東森財經" -> "東森財經新聞". */
+    private fun fallbacks(exact: Set<String>) =
+        exact.filter { a -> a.any { it.code > 0x2E80 } && !a.endsWith("新闻") }.map { it + "新闻" }.toSet()
+
     private fun parseTime(s: String): Long? {
         val t = s.trim()
         for (f in listOf("yyyyMMddHHmmss Z", "yyyyMMddHHmmss")) {
@@ -82,49 +106,79 @@ object Epg {
         return null
     }
 
-    /** Downloads the guides and returns schedules keyed by our channel key. */
     /** Channel logos found in the guide files (our channel key -> picture link). */
     @Volatile var lastLogos: Map<String, String> = emptyMap()
 
+    /** Downloads the guides and returns schedules keyed by our channel key. */
     fun download(channels: List<Channel>, status: (String) -> Unit): Map<String, List<Prog>> {
         val logos = HashMap<String, String>()
-        val byAlias = HashMap<String, MutableList<String>>()
-        channels.forEach { ch -> aliases(ch).forEach { a -> byAlias.getOrPut(a) { mutableListOf() } += ch.key } }
+        val exact = HashMap<String, MutableList<String>>()
+        val second = HashMap<String, MutableList<String>>()
+        channels.forEach { ch ->
+            val a = aliases(ch)
+            a.forEach { exact.getOrPut(it) { mutableListOf() } += ch.key }
+            fallbacks(a).forEach { second.getOrPut(it) { mutableListOf() } += ch.key }
+        }
 
         val now = System.currentTimeMillis()
         val from = now - TimeUnit.HOURS.toMillis(3)
         val to = now + TimeUnit.DAYS.toMillis(4)
-        val result = HashMap<String, MutableList<Prog>>()
+        val result = HashMap<String, List<Prog>>()
 
         val all = SOURCES + globeTvFiles()
         all.forEachIndexed { i, url ->
             status(Lang.t("📅 下載節目表 ", "📅 Downloading TV guide ") + "${i + 1}/${all.size}…")
+            val got = HashMap<String, MutableList<Prog>>()
             try {
-                Net.open(url, null, 15000, 60000) { _, _, input, _ ->
+                Net.open(url, null, 15000, 90000) { _, _, input, _ ->
                     if (input != null) {
                         val buf = BufferedInputStream(input, 65536)
                         val stream = if (url.endsWith(".gz")) GZIPInputStream(buf) else buf
-                        parse(stream, byAlias, from, to, result, logos)
+                        parse(stream, exact, second, from, to, got, logos)
                     }
                 }
-            } catch (_: Exception) { /* this guide file is unavailable; skip */ }
+            } catch (_: Exception) { /* this guide file is unavailable or cut off; keep what was read */ }
+            // first file that has a channel wins, so two guides are never mixed
+            got.forEach { (k, v) ->
+                if (v.isNotEmpty() && !result.containsKey(k))
+                    result[k] = v.sortedBy { it.start }.distinctBy { it.start }.take(150)
+            }
         }
         lastLogos = logos
-        return result.mapValues { (_, v) -> v.sortedBy { it.start }.distinctBy { it.start }.take(150) }
+        return result
     }
 
     private fun parse(
-        input: InputStream, byAlias: Map<String, List<String>>, from: Long, to: Long,
+        input: InputStream, exact: Map<String, List<String>>, second: Map<String, List<String>>,
+        from: Long, to: Long,
         out: MutableMap<String, MutableList<Prog>>,
         logos: MutableMap<String, String>,
     ) {
         var icon: String? = null
         val p = Xml.newPullParser()
         p.setInput(input, "UTF-8")
-        val idToKeys = HashMap<String, List<String>>()   // xmltv channel id -> our keys
+        val exactIds = LinkedHashMap<String, LinkedHashSet<String>>()   // xmltv channel id -> our keys
+        val secondIds = LinkedHashMap<String, LinkedHashSet<String>>()
+        var idToKeys: Map<String, List<String>>? = null                  // fixed at the first programme
         var chId: String? = null
         var progKeys: List<String>? = null
         var start = 0L; var stop = 0L; var title: String? = null
+
+        fun note(id: String, name: String) {
+            val n = norm(name)
+            exact[n]?.let { exactIds.getOrPut(id) { LinkedHashSet() } += it }
+            second[n]?.let { secondIds.getOrPut(id) { LinkedHashSet() } += it }
+        }
+
+        /** Each of our channels gets one guide channel: an exact match first, the "…新聞" try only if none. */
+        fun resolve(): Map<String, List<String>> {
+            val taken = HashSet<String>()
+            val m = HashMap<String, MutableList<String>>()
+            for ((id, keys) in exactIds) for (k in keys) if (taken.add(k)) m.getOrPut(id) { mutableListOf() } += k
+            for ((id, keys) in secondIds) for (k in keys) if (taken.add(k)) m.getOrPut(id) { mutableListOf() } += k
+            return m
+        }
+
         var ev = p.eventType
         while (ev != XmlPullParser.END_DOCUMENT) {
             when (ev) {
@@ -133,14 +187,12 @@ object Epg {
                     "channel" -> {
                         icon = null
                         chId = p.getAttributeValue(null, "id")
-                        chId?.let { id -> byAlias[norm(id)]?.let { idToKeys[id] = it } }
+                        chId?.let { note(it, it) }
                     }
-                    "display-name" -> chId?.let { id ->
-                        val keys = byAlias[norm(p.nextText())]
-                        if (keys != null) idToKeys[id] = (idToKeys[id] ?: emptyList()) + keys
-                    }
+                    "display-name" -> chId?.let { id -> note(id, p.nextText()) }
                     "programme" -> {
-                        val keys = idToKeys[p.getAttributeValue(null, "channel") ?: ""]
+                        val map = idToKeys ?: resolve().also { idToKeys = it }
+                        val keys = map[p.getAttributeValue(null, "channel") ?: ""]
                         progKeys = null
                         if (keys != null) {
                             start = parseTime(p.getAttributeValue(null, "start") ?: "") ?: 0L
@@ -155,7 +207,7 @@ object Epg {
                         val id = chId
                         val src = icon
                         if (id != null && !src.isNullOrBlank() && src.startsWith("http")) {
-                            idToKeys[id]?.forEach { k -> logos.putIfAbsent(k, src) }
+                            (exactIds[id] ?: emptySet<String>()).forEach { k -> logos.putIfAbsent(k, src) }
                         }
                         chId = null
                     }
@@ -163,7 +215,7 @@ object Epg {
                         val keys = progKeys
                         val t = title
                         if (keys != null && !t.isNullOrEmpty()) {
-                            keys.distinct().forEach { k -> out.getOrPut(k) { mutableListOf() } += Prog(start, stop, t) }
+                            keys.forEach { k -> out.getOrPut(k) { mutableListOf() } += Prog(start, stop, t) }
                         }
                         progKeys = null
                     }
