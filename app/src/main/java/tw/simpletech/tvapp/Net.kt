@@ -72,10 +72,19 @@ object Net {
     private val ytCanonical = Regex("""<link rel="canonical" href="https://www\.youtube\.com/watch\?v=([\w-]{11})""")
     private val ytLiveNow = Regex(""""isLiveNow"\s*:\s*true""")
 
+    private val ytAvatar = Regex("""https://yt3\.(?:ggpht|googleusercontent)\.com/[A-Za-z0-9_\-./=]+""")
+
+    /** Channel picture (logo) found on the last YouTube page that was checked, by page URL. */
+    val youTubeLogos = java.util.concurrent.ConcurrentHashMap<String, String>()
+
     /** Official YouTube live: returns the current live video id, or null if not live now. */
     fun youTubeLive(url: String): String? = try {
         val html = open(url.removePrefix("yt:"), Stream(url, userAgent = DESKTOP_UA), 15000, 30000) { _, _, input, _ ->
             input?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
+        }
+        // the channel's own profile picture = its logo
+        ytAvatar.find(html)?.value?.let { a ->
+            youTubeLogos[url] = a.replace(Regex("""=s\d+[^/]*$"""), "=s176-c-k-c0x00ffffff-no-rj")
         }
         if (ytLiveNow.containsMatchIn(html)) ytCanonical.find(html)?.groupValues?.get(1) else null
     } catch (e: Exception) {

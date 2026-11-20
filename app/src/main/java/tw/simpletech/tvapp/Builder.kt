@@ -337,6 +337,7 @@ object Checker {
         for (s in ch.streams.toList()) {
             if (s.isYouTube) {
                 val id = Net.youTubeLive(s.url) ?: continue
+                if (ch.logo.isEmpty()) Net.youTubeLogos[s.url]?.let { ch.logo = it }
                 ch.streams.remove(s); ch.streams.add(0, s.copy(extra = id))
                 ch.status = "ok"; ch.lastOk = now; return
             }
