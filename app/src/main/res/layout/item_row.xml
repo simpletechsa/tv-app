@@ -30,7 +30,7 @@
         android:layout_weight="1"
         android:ellipsize="end"
         android:maxLines="2"
-        android:textColor="@color/text"
+        android:textColor="?attr/cText"
         android:textSize="20sp" />
 
     <TextView
@@ -42,6 +42,6 @@
         android:ellipsize="end"
         android:gravity="end"
         android:maxLines="2"
-        android:textColor="@color/sub"
+        android:textColor="?attr/cSub"
         android:textSize="15sp" />
 </LinearLayout>

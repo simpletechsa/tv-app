@@ -106,6 +106,10 @@ object Store {
     fun showNumbers(ctx: Context) = prefs(ctx).getBoolean("numbers", true)
     fun setShowNumbers(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("numbers", on).apply()
 
+    /** Look: false = Springbok green & gold (default), true = Classic blue. */
+    fun classic(ctx: Context) = prefs(ctx).getBoolean("classic", false)
+    fun setClassic(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("classic", on).apply()
+
     // ------------------------------------------------------------ favorites
     fun isFav(ch: Channel) = ch.key in favs
     fun isFavKey(key: String) = key in favs
