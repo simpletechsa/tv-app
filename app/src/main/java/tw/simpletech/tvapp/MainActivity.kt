@@ -72,7 +72,7 @@ class MainActivity : Activity() {
     private fun showGroups(moveFocus: Boolean = true) {
         group = null
         val rows = Store.groups().map { (g, n) ->
-            Row(Lang.pick(g), if (g == Groups.ADULT) "" else "$n", null) { pos, _ ->
+            Row(Lang.pick(g), if (g == Groups.ADULT) "" else "$n", null, onLong = { refreshFolder(g) }) { pos, _ ->
                 groupPos = pos
                 if (g == Groups.ADULT) secretPress() else showChannels(g)
             }
@@ -171,8 +171,8 @@ class MainActivity : Activity() {
             if (Updater.isRunning) append(t("\n🔄 背景更新中…\n", "\n🔄 Updating in the background…\n"))
             if (Updater.vpnOn(this@MainActivity)) append(t("\n🔒 VPN 開啟中：只更新橄欖球\n", "\n🔒 VPN on: only rugby is updated\n"))
             append(t("\n每天自動在背景檢查。\n", "\nChecked daily in the background.\n"))
-            append(t("\n遙控器：↑/↓ 換台 · OK 頻道清單（←/→ 翻頁，返回 = 資料夾）· 長按OK = ♥ · 音量用音量鍵\n",
-                "\nRemote: ↑/↓ channel · OK list (←/→ page, Back = folders) · hold OK = ♥ · volume keys for volume\n"))
+            append(t("\n遙控器：↑/↓ 換台 · OK 頻道清單（←/→ 翻頁，返回 = 資料夾）· 長按OK = ♥ · 音量用音量鍵 · 資料夾上長按OK = 只更新該資料夾\n",
+                "\nRemote: ↑/↓ channel · OK list (←/→ page, Back = folders) · hold OK = ♥ · volume keys for volume · hold OK on a folder = update only that folder\n"))
             append(t("手機：上下滑 換台 · 點一下 清單 · 長按 = ♥", "Phone: swipe = channel · tap = list · long-press = ♥"))
         }
         val pad = (16 * resources.displayMetrics.density).toInt()
@@ -218,6 +218,27 @@ class MainActivity : Activity() {
     /** Updates the list without moving the selection. */
     private fun redraw() {
         if (group == null) showGroups(moveFocus = false) else showChannels(group!!, keepPos = true)
+    }
+
+    /** Hold OK on a folder: re-check only that folder. */
+    private fun refreshFolder(g: String) {
+        if (busy) return
+        if (Updater.isRunning) { setStatus(Lang.t("🔄 已在更新中…", "🔄 Already updating…")); return }
+        busy = true
+        setStatus(Lang.pick(g) + Lang.t("：開始更新…", ": updating…"))
+        thread {
+            try {
+                Updater.folder(applicationContext, g) { setStatus(Lang.pick(g) + " · " + it) }
+                busy = false
+                runOnUiThread {
+                    redraw(); showDone()
+                    Toast.makeText(this, Lang.pick(g) + Lang.t(" 已更新", " updated"), Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                setStatus(Lang.t("❌ 失敗：", "❌ Failed: ") + (e.message ?: e.javaClass.simpleName))
+                busy = false
+            }
+        }
     }
 
     /** Visible check (first install or the Check & fix button). */

@@ -51,6 +51,14 @@ object Store {
         loadAdmin(ctx)
     }
 
+    /** Saves the list without counting it as the daily full check (used by single-folder refresh). */
+    fun saveOnly(ctx: Context, list: List<Channel>) {
+        val arr = JSONArray()
+        list.forEach { arr.put(it.toJson()) }
+        writeAtomic(ctx, "channels.json", arr.toString())
+        channels = list
+    }
+
     fun save(ctx: Context, list: List<Channel>, viaVpn: Boolean = false) {
         val arr = JSONArray()
         list.forEach { arr.put(it.toJson()) }
@@ -96,6 +104,7 @@ object Store {
 
     // ------------------------------------------------------------ favorites
     fun isFav(ch: Channel) = ch.key in favs
+    fun isFavKey(key: String) = key in favs
 
     /** Returns true if the channel is now a favorite. */
     fun toggleFav(ctx: Context, ch: Channel): Boolean {

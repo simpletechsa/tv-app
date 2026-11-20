@@ -54,6 +54,31 @@ object Updater {
         }
     }
 
+    /** Re-check only one folder (or Favorites). Other folders stay exactly as they are. */
+    fun folder(ctx: Context, group: String, status: (String) -> Unit): Boolean {
+        if (!running.compareAndSet(false, true)) return false
+        try {
+            val app = ctx.applicationContext
+            val prevAll = Store.channels
+            val prev = prevAll.associateBy { it.key }
+            fun inFolder(key: String, g: String) =
+                if (group == Groups.FAV) Store.isFavKey(key) && g != Groups.ADULT else g == group
+            val fresh = Builder.build(Store.customUrls(app), status)
+            val targets = fresh.filter { inFolder(it.key, it.group) }
+            Checker.run(targets, prev, vpn = vpnOn(app) && prev.isNotEmpty()) { done, total ->
+                if (done % 5 == 0 || done == total) status(Lang.t("🔄 更新資料夾：", "🔄 Updating folder: ") + "$done / $total")
+            }
+            val updated = targets.filter { it.status != "dead" }
+            val updatedKeys = updated.map { it.key }.toSet()
+            val keep = prevAll.filter { !inFolder(it.key, it.group) && it.key !in updatedKeys }
+            Store.saveOnly(app, keep + updated)
+            onUpdated?.invoke()
+            return true
+        } finally {
+            running.set(false)
+        }
+    }
+
     /** TV guide only. */
     fun guide(ctx: Context, status: (String) -> Unit): Boolean {
         if (!running.compareAndSet(false, true)) return false
