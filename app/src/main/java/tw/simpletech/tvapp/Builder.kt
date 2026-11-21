@@ -372,6 +372,18 @@ object Checker {
     }
 
     private fun checkWithVpn(ch: Channel, prev: Channel?, now: Long) {
+        // Taiwan channels that only work outside Taiwan (e.g. 24-hour news lives blocked in Taiwan)
+        if (ch.group == Groups.TW && prev?.status == "vpn") {
+            for (s in ch.streams.toList()) {
+                if (s.isYouTube) {
+                    val id = Net.youTubeLive(s.url) ?: continue
+                    ch.streams.remove(s); ch.streams.add(0, s.copy(extra = id, title = Net.youTubeTitles[id]))
+                    ch.status = "vpn"; ch.lastOk = now; return
+                }
+                if (Net.check(s, relaxed = true) == "ok") { promote(ch, s); ch.status = "vpn"; ch.lastOk = now; return }
+            }
+            copyPrev(ch, prev); return
+        }
         if (ch.group !in Groups.VPN_OK) {
             if (prev != null) copyPrev(ch, prev) else ch.status = "dead"
             return
@@ -402,7 +414,8 @@ object Checker {
         // real TV links first; official YouTube lives only if none of them works (YouTube has ads)
         for (s in ch.streams.sortedBy { it.isYouTube }) {
             if (s.isYouTube) {
-                val id = Net.youTubeLive(s.url) ?: continue
+                val id = Net.youTubeLive(s.url)
+                if (id == null) { if (Net.youTubeBlocked[s.url] == true && geo == null) geo = s; continue }
                 if (ch.logo.isEmpty()) Net.youTubeLogos[s.url]?.let { ch.logo = it }
                 ch.streams.remove(s); ch.streams.add(0, s.copy(extra = id, title = Net.youTubeTitles[id]))
                 ch.status = "ok"; ch.lastOk = now; return
@@ -414,10 +427,10 @@ object Checker {
             }
         }
         // Rugby that only works with a VPN: keep it and show which country to pick
-        if (ch.group in Groups.VPN_OK && geo != null) {
+        if ((ch.group in Groups.VPN_OK || ch.group == Groups.TW) && geo != null) {
             promote(ch, geo); ch.status = "vpn"; return
         }
-        if (ch.group in Groups.VPN_OK && prev?.status == "vpn") { copyPrev(ch, prev); return }
+        if ((ch.group in Groups.VPN_OK || ch.group == Groups.TW) && prev?.status == "vpn") { copyPrev(ch, prev); return }
         // Free-to-air Taiwan channels: keep the last working link for a few days
         if (ch.group == Groups.TW && Builder.mustIndex(ch.name) >= 0 && prev != null && prev.lastOk > 0 && prev.streams.isNotEmpty() &&
             now - prev.lastOk < TimeUnit.DAYS.toMillis(KEEP_DAYS)

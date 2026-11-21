@@ -27,6 +27,27 @@ object Updater {
     }
     fun guideDue(ctx: Context) = Store.epgOld(ctx) || System.currentTimeMillis() - Store.lastEpg(ctx) > GUIDE_EVERY
 
+    /**
+     * A YouTube channel that runs more than one 24-hour live (e.g. 民視 news + another 民視 channel):
+     * each extra one becomes its own channel, named after its title. Only real channels (running 12+ hours), live now.
+     */
+    private fun withFeeds(list: List<Channel>): List<Channel> {
+        val used = list.mapNotNull { c -> c.streams.firstOrNull()?.takeIf { it.isYouTube && c.status == "ok" }?.extra }.toMutableSet()
+        val extra = mutableListOf<Channel>()
+        for (c in list) {
+            val s = c.streams.firstOrNull() ?: continue
+            if (!s.isYouTube || c.status != "ok") continue
+            for ((id, title) in Net.youTubeFeeds[s.url] ?: emptyList()) {
+                if (!used.add(id)) continue
+                val name = c.name.substringBefore(' ') + " · " + title.take(40).ifBlank { "LIVE" }
+                extra += Channel("ytx:$id", name, c.group, c.logo,
+                    mutableListOf(Stream("yt:https://www.youtube.com/watch?v=$id", extra = id, title = title)),
+                    status = "ok", lastOk = System.currentTimeMillis())
+            }
+        }
+        return list + extra
+    }
+
     /** Full check of all links, then the TV guide. Returns false if one is already running. */
     fun full(ctx: Context, status: (String) -> Unit): Boolean {
         if (!running.compareAndSet(false, true)) return false
@@ -44,7 +65,7 @@ object Updater {
                     onUpdated?.invoke()
                 }
             }
-            Store.save(app, fresh.filter { it.status != "dead" }, viaVpn = vpn)
+            Store.save(app, withFeeds(fresh).filter { it.status != "dead" }, viaVpn = vpn)
             onUpdated?.invoke()
             guideInner(app, status)
             onUpdated?.invoke()
@@ -68,7 +89,7 @@ object Updater {
             Checker.run(targets, prev, vpn = vpnOn(app) && prev.isNotEmpty()) { done, total ->
                 if (done % 5 == 0 || done == total) status(Lang.t("🔄 更新資料夾：", "🔄 Updating folder: ") + "$done / $total")
             }
-            val updated = targets.filter { it.status != "dead" }
+            val updated = withFeeds(targets).filter { it.status != "dead" }
             val updatedKeys = updated.map { it.key }.toSet()
             val keep = prevAll.filter { !inFolder(it.key, it.group) && it.key !in updatedKeys }
             Store.saveOnly(app, keep + updated)

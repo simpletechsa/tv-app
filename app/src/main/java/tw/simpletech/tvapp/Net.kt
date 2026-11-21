@@ -77,6 +77,13 @@ object Net {
     /** Channel picture (logo) found on the last YouTube page that was checked, by page URL. */
     val youTubeLogos = java.util.concurrent.ConcurrentHashMap<String, String>()
 
+    /** YouTube pages that say "not available in your country" (page link -> true): needs a VPN. */
+    val youTubeBlocked = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+    private val ytGeo = Regex(""""playabilityStatus":\{"status":"(?:UNPLAYABLE|LOGIN_REQUIRED|ERROR)"[^}]{0,300}?"reason":"[^"]*(?:country|國家|地區|region)""", RegexOption.IGNORE_CASE)
+
+    /** Other 24-hour channel lives on the same YouTube channel (page link -> video id + title). */
+    val youTubeFeeds = java.util.concurrent.ConcurrentHashMap<String, List<Pair<String, String>>>()
+
     /** Live video titles found during lookups, by video id. */
     val youTubeTitles = java.util.concurrent.ConcurrentHashMap<String, String>()
 
@@ -84,7 +91,6 @@ object Net {
     private val ytVideo = Regex(""""videoRenderer":\{"videoId":"([\w-]{11})"""")
     private val ytRunTitle = Regex(""""title":\{"runs":\[\{"text":"((?:[^"\\]|\\.)*)"""")
     private val ytLiveBadge = Regex("""BADGE_STYLE_TYPE_LIVE_NOW|"style":"LIVE"""")
-    private val is24h = Regex("""24\s*(小時|h|hr|hour|H)|24/7|二十四小時|全天""", RegexOption.IGNORE_CASE)
 
     private fun page(u: String): String = open(u, Stream(u, userAgent = DESKTOP_UA), 15000, 30000) { _, _, input, _ ->
         input?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
@@ -93,35 +99,71 @@ object Net {
     private fun unescape(t: String) = t.replace(Regex("""\\u([0-9a-fA-F]{4})""")) { it.groupValues[1].toInt(16).toChar().toString() }
         .replace("\\\"", "\"").replace("\\/", "/").replace("&amp;", "&").replace("&quot;", "\"").replace("&#39;", "'")
 
+    private val ytStart = Regex(""""startTimestamp":"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)([+-]\d\d):?(\d\d)"""")
+
+    /** When a live started (from its page), or null if unknown. */
+    private fun liveStart(html: String): Long? {
+        val m = ytStart.find(html) ?: return null
+        return try {
+            val f = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+            f.timeZone = java.util.TimeZone.getTimeZone("UTC")
+            val local = f.parse(m.groupValues[1])!!.time
+            val sign = if (m.groupValues[2].startsWith("-")) -1 else 1
+            val off = (m.groupValues[2].drop(1).toInt() * 60 + m.groupValues[3].toInt()) * 60_000L * sign
+            local - off
+        } catch (e: Exception) { null }
+    }
+
+    /** A real 24-hour channel feed has been running for hours; talk shows / rallies / replays have not. */
+    private const val FEED_MIN_HOURS = 4
+
     /**
-     * Official YouTube live: returns the current live video id, or null if not live now.
-     * News channels run several lives (talk shows, rallies); the 24-hour news live is preferred.
+     * Official YouTube live: returns the channel's own 24-hour live, or null if it isn't live now.
+     * A news channel runs several lives (talk shows, rallies, events): the one that has been running
+     * the longest is the real channel feed. Shorter lives are never used in its place.
      */
     fun youTubeLive(url: String): String? = try {
         val pageUrl = url.removePrefix("yt:")
         val html = page(pageUrl)
+        youTubeBlocked[url] = ytGeo.containsMatchIn(html)
         // the channel's own profile picture = its logo
         ytAvatar.find(html)?.value?.let { a ->
             youTubeLogos[url] = a.replace(Regex("""=s\d+[^/]*$"""), "=s176-c-k-c0x00ffffff-no-rj")
         }
-        var id = if (ytLiveNow.containsMatchIn(html)) ytCanonical.find(html)?.groupValues?.get(1) else null
-        if (id != null) ytTitle.find(html)?.groupValues?.get(1)?.let { youTubeTitles[id!!] = unescape(it) }
-        // Look at all lives on the channel; take the 24-hour one if there is one
-        if (pageUrl.endsWith("/live") && (id == null || youTubeTitles[id]?.let { is24h.containsMatchIn(it) } != true)) {
+        val starts = HashMap<String, Long>()
+        val mainId = if (ytLiveNow.containsMatchIn(html)) ytCanonical.find(html)?.groupValues?.get(1) else null
+        if (mainId != null) {
+            ytTitle.find(html)?.groupValues?.get(1)?.let { youTubeTitles[mainId] = unescape(it) }
+            liveStart(html)?.let { starts[mainId] = it }
+        }
+        if (pageUrl.endsWith("/live")) {
+            // every live on the channel right now, with its start time
+            val others = LinkedHashSet<String>()
             try {
                 val streams = page(pageUrl.removeSuffix("/live") + "/streams")
-                val parts = streams.split("\"videoRenderer\":{").drop(1)
-                for (part in parts) {
+                for (part in streams.split("\"videoRenderer\":{").drop(1)) {
                     val chunk = "\"videoRenderer\":{" + part.take(6000)
                     val vid = ytVideo.find(chunk)?.groupValues?.get(1) ?: continue
                     if (!ytLiveBadge.containsMatchIn(chunk)) continue
-                    val t = unescape(ytRunTitle.find(chunk)?.groupValues?.get(1) ?: "")
-                    youTubeTitles[vid] = t
-                    if (is24h.containsMatchIn(t)) { id = vid; break }
+                    youTubeTitles[vid] = unescape(ytRunTitle.find(chunk)?.groupValues?.get(1) ?: "")
+                    if (vid != mainId) others += vid
                 }
-            } catch (_: Exception) { /* keep the /live result */ }
+            } catch (_: Exception) { }
+            for (vid in others.take(6)) {
+                try {
+                    val w = page("https://www.youtube.com/watch?v=$vid")
+                    if (ytLiveNow.containsMatchIn(w)) liveStart(w)?.let { starts[vid] = it }
+                } catch (_: Exception) { }
+            }
         }
-        id
+        // the longest-running live, and only if it has run long enough to be the channel's feed
+        val now = System.currentTimeMillis()
+        val chosen = if (starts.isEmpty()) mainId          // YouTube gave no start times at all: keep the channel's main live
+            else starts.filterValues { now - it >= FEED_MIN_HOURS * 3_600_000L }.minByOrNull { it.value }?.key
+        // other lives that are channels (running 12+ hours), not shows
+        youTubeFeeds[url] = starts.filter { it.key != chosen && now - it.value >= 12 * 3_600_000L }
+            .entries.sortedBy { it.value }.map { it.key to (youTubeTitles[it.key] ?: "") }
+        chosen
     } catch (e: Exception) {
         null
     }

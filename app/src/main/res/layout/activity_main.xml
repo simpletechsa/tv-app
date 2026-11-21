@@ -4,6 +4,10 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="64dp">
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="64dp"
@@ -57,6 +61,17 @@
             android:textColor="?attr/cSub"
             android:textSize="16sp" />
     </LinearLayout>
+
+        <!-- small spinning circle, top middle, while anything is updating -->
+        <ProgressBar
+            android:id="@+id/spinner"
+            style="?android:attr/progressBarStyleSmall"
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:layout_gravity="center"
+            android:indeterminateTint="?attr/cAccent"
+            android:visibility="gone" />
+    </FrameLayout>
 
     <TextView
         android:id="@+id/status"
