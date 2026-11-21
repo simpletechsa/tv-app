@@ -78,6 +78,7 @@ class PlayerActivity : Activity() {
         info = findViewById(R.id.info)
         webBox = findViewById(R.id.webBox)
         YtPool.onFailed = failCallback
+        YtPool.onStarted = startedCallback
         overlay = findViewById(R.id.overlay)
         overlayTitle = findViewById(R.id.overlayTitle)
         overlayHint = findViewById(R.id.overlayHint)
@@ -95,7 +96,9 @@ class PlayerActivity : Activity() {
         view.useController = false
         view.keepScreenOn = true
         player.addListener(object : Player.Listener {
-            override fun onPlayerError(error: PlaybackException) = nextStream()
+            override fun onPlayerError(error: PlaybackException) {
+                if (splitOldExo) endSplit() else nextStream()   // old channel in the split failed: just close it
+            }
         })
 
         // Phone: swipe up/down = channel, tap = channel list, long-press = favorite
@@ -128,6 +131,7 @@ class PlayerActivity : Activity() {
 
     private fun start() {
         ytLookup++                                   // cancels a YouTube lookup still running
+        endSplit()
         val ch = chans[index]
         if (!Store.youTubeOn) while (ch.streams.getOrNull(streamIdx)?.isYouTube == true) streamIdx++   // YouTube OFF: skip
         val s = ch.streams.getOrNull(streamIdx)
@@ -163,7 +167,6 @@ class PlayerActivity : Activity() {
 
     /** Plays the channel's live straight away (no waiting). */
     private fun openYouTube(s: Stream) {
-        player.stop()
         val token = ytLookup
         // play at once with the newest known live (updated quietly when the folder was opened)
         (YtPool.fresh[s.url]?.first ?: s.extra)?.let { openYouTubeId(s, it); return }
@@ -190,11 +193,32 @@ class PlayerActivity : Activity() {
                 return
             } catch (e: Exception) { extOpened = false }      // app missing: fall back to built-in
         }
-        val id = liveId ?: run { nextStream(); return }
-        view.visibility = View.GONE
-        webBox.visibility = View.VISIBLE
-        webPool.forEach { (k, w) -> if (k != id) { w.evaluateJavascript("try{p.pauseVideo()}catch(e){}", null); w.visibility = View.GONE } }
+        val id = liveId ?: run { player.stop(); nextStream(); return }
         val existing = webPool[id]
+        // TV, new YouTube channel (its ad will play): half screen for the ad (with sound),
+        // the channel you were watching stays on the other half without sound, until the ad is over.
+        val oldWeb = webCurrent?.takeIf { it != id && webBox.visibility == View.VISIBLE && webPool[it] != null }
+        val oldExo = webBox.visibility != View.VISIBLE && view.visibility == View.VISIBLE &&
+            (player.playbackState == Player.STATE_READY || player.playbackState == Player.STATE_BUFFERING)
+        val split = isTv && existing == null && (oldWeb != null || oldExo)
+        if (split && oldExo) {
+            player.volume = 0f
+            half(view, end = true)
+            half(webBox, end = false)
+            splitOldExo = true
+        } else {
+            player.stop()
+            view.visibility = View.GONE
+        }
+        webBox.visibility = View.VISIBLE
+        webPool.forEach { (k, w) ->
+            if (k == id) return@forEach
+            if (split && k == oldWeb) {
+                w.evaluateJavascript("try{p.mute()}catch(e){}", null)
+                half(w, end = true)
+            } else { w.evaluateJavascript("try{p.pauseVideo()}catch(e){}", null); w.visibility = View.GONE }
+        }
+        if (split && oldWeb != null) splitOldWeb = oldWeb
         if (existing != null) {
             // same player as before: resume and jump to live, no new start (no repeat ads)
             if (existing.parent !== webBox) {
@@ -208,6 +232,12 @@ class PlayerActivity : Activity() {
             existing.evaluateJavascript("try{p.seekTo(p.getDuration(),true);p.playVideo()}catch(e){}", null)
         } else {
             webPool[id] = newYouTubeView(id)
+            if (split) {
+                splitB = id
+                if (splitOldWeb != null) webPool[id]?.let { half(it, end = false) }
+                handler.postDelayed(splitTimeout, 100_000)      // never stay split longer than this
+                showInfo(Lang.t("📺 廣告播完自動全螢幕", "📺 Full screen when the ad ends"), 4000)
+            }
             while (webPool.size > YtPool.MAX) {
                 val oldest = webPool.keys.first()
                 webPool.remove(oldest)?.let { (it.parent as? android.view.ViewGroup)?.removeView(it); it.destroy() }
@@ -230,6 +260,8 @@ class PlayerActivity : Activity() {
         w.addJavascriptInterface(object {
             @android.webkit.JavascriptInterface
             fun failed(code: Int) { YtPool.onFailed?.invoke(id) }
+            @android.webkit.JavascriptInterface
+            fun started() { YtPool.onStarted?.invoke(id) }
 
         }, "STSA")
         w.setOnTouchListener { _, e -> gestures.onTouchEvent(e); true }
@@ -239,13 +271,58 @@ class PlayerActivity : Activity() {
             <body><div id="p"></div><script src="https://www.youtube.com/iframe_api"></script><script>
             var p;function onYouTubeIframeAPIReady(){p=new YT.Player('p',{width:'100%',height:'100%',videoId:'$id',
             playerVars:{autoplay:1,controls:0,rel:0,modestbranding:1,iv_load_policy:3,playsinline:1,disablekb:1,fs:0,cc_load_policy:0},
-            events:{onReady:function(e){e.target.playVideo();},onError:function(e){STSA.failed(e.data);}}});}
+            events:{onReady:function(e){e.target.playVideo();},onError:function(e){STSA.failed(e.data);}}});
+            var lastT=-1,ok=0,done=false;
+            setInterval(function(){try{if(done||!p||!p.getPlayerState)return;
+              var s=p.getPlayerState(),t=p.getCurrentTime();
+              if(s===1&&lastT>=0&&t-lastT>0.5){ok++;}else{ok=0;}
+              lastT=t;if(ok>=2){done=true;STSA.started();}}catch(e){}},1000);}
             </script></body></html>"""
         w.loadDataWithBaseURL("https://simpletechsa.github.io/", html, "text/html", "UTF-8", null)
         webBox.addView(w, android.widget.FrameLayout.LayoutParams(
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT, android.widget.FrameLayout.LayoutParams.MATCH_PARENT))
         return w
     }
+
+    // ------------------------------------------------------------------ half-screen ad (TV only)
+    private val isTv by lazy {
+        (getSystemService(Context.UI_MODE_SERVICE) as android.app.UiModeManager).currentModeType ==
+            android.content.res.Configuration.UI_MODE_TYPE_TELEVISION
+    }
+    private var splitB: String? = null        // new YouTube channel playing its ad on the left half
+    private var splitOldWeb: String? = null   // old YouTube channel on the right half (muted)
+    private var splitOldExo = false           // old normal TV channel on the right half (muted)
+    private val splitTimeout = Runnable { endSplit() }
+
+    private fun half(v: View, end: Boolean) {
+        v.layoutParams = android.widget.FrameLayout.LayoutParams(resources.displayMetrics.widthPixels / 2,
+            ViewGroup.LayoutParams.MATCH_PARENT, if (end) android.view.Gravity.END else android.view.Gravity.START)
+        v.visibility = View.VISIBLE
+    }
+
+    private fun full(v: View) {
+        v.layoutParams = android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+    }
+
+    /** Ad over (or channel changed): the new channel goes full screen, the old one stops. */
+    private fun endSplit() {
+        val b = splitB ?: return
+        splitB = null
+        handler.removeCallbacks(splitTimeout)
+        if (splitOldExo) {
+            splitOldExo = false
+            player.stop(); player.volume = 1f
+            full(view); view.visibility = View.GONE
+        }
+        splitOldWeb?.let { o ->
+            webPool[o]?.let { w -> w.evaluateJavascript("try{p.pauseVideo();p.unMute()}catch(e){}", null); w.visibility = View.GONE; full(w) }
+        }
+        splitOldWeb = null
+        full(webBox)
+        webPool[b]?.let { full(it) }
+    }
+
+    private val startedCallback: (String) -> Unit = { id -> runOnUiThread { if (splitB == id) endSplit() } }
 
     private val failCallback: (String) -> Unit = { id ->
         runOnUiThread { if (webCurrent == id && webBox.visibility == View.VISIBLE) nextStream() }
@@ -464,6 +541,7 @@ class PlayerActivity : Activity() {
         // keep watched YouTube channels for this app session (no repeat ads); just detach them
         pauseAllWeb()
         if (YtPool.onFailed === failCallback) YtPool.onFailed = null
+        if (YtPool.onStarted === startedCallback) YtPool.onStarted = null
         webBox.removeAllViews()
         webPool.values.forEach { (it.context as? android.content.MutableContextWrapper)?.baseContext = applicationContext }
         super.onDestroy()

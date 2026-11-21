@@ -14,6 +14,9 @@ object YtPool {
     /** Set by the screen that is showing; called when a YouTube live refuses to play. */
     @Volatile var onFailed: ((String) -> Unit)? = null
 
+    /** Set by the screen that is showing; called when a YouTube video's own picture starts (its ad is over). */
+    @Volatile var onStarted: ((String) -> Unit)? = null
+
     /** Live video found when a channel was opened (page link -> video id, time), reused for 10 minutes. */
     val fresh = java.util.concurrent.ConcurrentHashMap<String, Pair<String, Long>>()
 }
