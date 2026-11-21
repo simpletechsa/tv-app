@@ -201,7 +201,7 @@ class PlayerActivity : Activity() {
         webPool.forEach { (k, w) -> if (k != id) { w.evaluateJavascript("try{p.pauseVideo()}catch(e){}", null); w.visibility = View.GONE } }
         // a new YouTube player plays its ad first: ad on one half (with sound),
         // the new channel's live picture + what's on on the other half, so you can flip at once
-        val split = existing == null
+        val split = false                               // split screen removed (YouTube gives no real live picture)
         if (existing != null) {
             // same player as before: resume and jump to live, no new start (no repeat ads)
             if (existing.parent !== webBox) {
