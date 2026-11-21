@@ -77,6 +77,9 @@ object Net {
     /** Channel picture (logo) found on the last YouTube page that was checked, by page URL. */
     val youTubeLogos = java.util.concurrent.ConcurrentHashMap<String, String>()
 
+    /** Other 24-hour channel lives on the same YouTube channel (page link -> video id + title). */
+    val youTubeFeeds = java.util.concurrent.ConcurrentHashMap<String, List<Pair<String, String>>>()
+
     /** Live video titles found during lookups, by video id. */
     val youTubeTitles = java.util.concurrent.ConcurrentHashMap<String, String>()
 
@@ -150,8 +153,12 @@ object Net {
         }
         // the longest-running live, and only if it has run long enough to be the channel's feed
         val now = System.currentTimeMillis()
-        if (starts.isEmpty()) mainId          // YouTube gave no start times at all: keep the channel's main live
-        else starts.filterValues { now - it >= FEED_MIN_HOURS * 3_600_000L }.minByOrNull { it.value }?.key
+        val chosen = if (starts.isEmpty()) mainId          // YouTube gave no start times at all: keep the channel's main live
+            else starts.filterValues { now - it >= FEED_MIN_HOURS * 3_600_000L }.minByOrNull { it.value }?.key
+        // other lives that are channels (running 12+ hours), not shows
+        youTubeFeeds[url] = starts.filter { it.key != chosen && now - it.value >= 12 * 3_600_000L }
+            .entries.sortedBy { it.value }.map { it.key to (youTubeTitles[it.key] ?: "") }
+        chosen
     } catch (e: Exception) {
         null
     }
