@@ -111,6 +111,7 @@ class MainActivity : Activity() {
         val chans = Store.inGroup(g)
         if (chans.isEmpty()) { showGroups(moveFocus = !keepPos); return }
         header(g, chans.size)
+        if (!keepPos) refreshYouTube(g, chans)
         useGrid(false)
         val now = SimpleDateFormat("HH:mm", Locale.getDefault())
         val numbers = Store.showNumbers(this)
@@ -157,6 +158,34 @@ class MainActivity : Activity() {
         if (pos < 0) return
         list.scrollToPosition(pos)
         list.post { list.findViewHolderForAdapterPosition(pos)?.itemView?.requestFocus() }
+    }
+
+    /**
+     * Opening a folder: quietly update the YouTube lives of its channels in the background,
+     * so a channel never plays an old (ended) video and never has to wait when opened.
+     */
+    private fun refreshYouTube(g: String, chans: List<Channel>) {
+        if (!Store.youTubeOn) return
+        val todo = chans.filter { ch ->
+            val s = ch.streams.firstOrNull()
+            s != null && s.isYouTube &&
+                YtPool.fresh[s.url]?.let { System.currentTimeMillis() - it.second < 10 * 60_000 } != true
+        }
+        if (todo.isEmpty()) return
+        Thread {
+            var changed = false
+            for (ch in todo) {
+                val s = ch.streams.firstOrNull() ?: continue
+                val id = Net.youTubeLive(s.url) ?: continue
+                YtPool.fresh[s.url] = id to System.currentTimeMillis()
+                val t = Net.youTubeTitles[id]
+                if (id != s.extra || t != s.title) {
+                    synchronized(ch) { if (ch.streams.firstOrNull() === s) ch.streams[0] = s.copy(extra = id, title = t ?: s.title) }
+                    changed = true
+                }
+            }
+            if (changed) runOnUiThread { if (group == g && !isFinishing) showChannels(g, keepPos = true) }
+        }.start()
     }
 
     /** Top bar: STSA TV on the main page, STSA TV › folder inside a folder. */
