@@ -39,6 +39,7 @@ object Store {
 
     // ------------------------------------------------------------ channels
     fun load(ctx: Context) {
+        youTubeOn = prefs(ctx).getBoolean("youtube", true)
         channels = try {
             val arr = JSONArray(File(ctx.filesDir, "channels.json").readText())
             (0 until arr.length()).map { Channel.fromJson(arr.getJSONObject(it)) }
@@ -102,6 +103,12 @@ object Store {
     fun youTubeApp(ctx: Context): String? = prefs(ctx).getString("ytApp", null)
     fun setYouTubeApp(ctx: Context, pkg: String?) = prefs(ctx).edit().putString("ytApp", pkg).apply()
 
+    // ------------------------------------------------------------ YouTube on/off (instant, no refresh)
+    /** OFF = never play YouTube; channels that only work through YouTube right now are hidden. */
+    @Volatile var youTubeOn = true
+    fun setYouTubeOn(ctx: Context, on: Boolean) { youTubeOn = on; prefs(ctx).edit().putBoolean("youtube", on).apply() }
+    private fun shown(c: Channel) = youTubeOn || c.streams.any { !it.isYouTube }
+
     // ------------------------------------------------------------ channel numbers on/off
     fun showNumbers(ctx: Context) = prefs(ctx).getBoolean("numbers", true)
     fun setShowNumbers(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("numbers", on).apply()
@@ -123,16 +130,16 @@ object Store {
 
     // ------------------------------------------------------------ groups
     fun groups(): List<Pair<String, Int>> {
-        val counts = channels.groupingBy { it.group }.eachCount().toMutableMap()
+        val counts = channels.filter { shown(it) }.groupingBy { it.group }.eachCount().toMutableMap()
         if (!adminOn) counts.remove(Groups.ADULT) else counts.putIfAbsent(Groups.ADULT, 0)   // locked folder always shown to admin
-        val favCount = channels.count { isFav(it) && it.group != Groups.ADULT }
+        val favCount = channels.count { isFav(it) && it.group != Groups.ADULT && shown(it) }
         if (favCount > 0) counts[Groups.FAV] = favCount
         return counts.toList().sortedWith(compareBy({ Groups.order(it.first) }, { it.first }))
     }
 
     fun inGroup(g: String): List<Channel> {
-        val list = if (g == Groups.FAV) channels.filter { isFav(it) && it.group != Groups.ADULT }
-                   else channels.filter { it.group == g }
+        val list = (if (g == Groups.FAV) channels.filter { isFav(it) && it.group != Groups.ADULT }
+                    else channels.filter { it.group == g }).filter { shown(it) }
         return list.sortedWith(compareBy(
             { Builder.mustIndex(it.name).let { i -> if (i < 0) 999 else i } },
             { it.name.lowercase() }))

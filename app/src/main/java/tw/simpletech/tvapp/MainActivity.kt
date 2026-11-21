@@ -262,6 +262,11 @@ class MainActivity : Activity() {
                            else t("🔢 頻道編號：關 → 開啟", "🔢 Channel numbers: OFF → turn on")) {
             Store.setShowNumbers(this, !nums); redraw()
         })
+        val yt = Store.youTubeOn
+        box.addView(button(if (yt) t("📺 YouTube 頻道：開 → 關閉（不看廣告）", "📺 YouTube channels: ON → turn off (no ads)")
+                           else t("📺 YouTube 頻道：關 → 開啟", "📺 YouTube channels: OFF → turn on")) {
+            Store.setYouTubeOn(this, !yt); redraw()
+        })
         val classic = Store.classic(this)
         box.addView(button(if (classic) t("🎨 外觀：經典藍 → 切換為 跳羚綠金", "🎨 Look: Classic → switch to Springbok")
                            else t("🎨 外觀：跳羚綠金 → 切換為 經典藍", "🎨 Look: Springbok → switch to Classic")) {

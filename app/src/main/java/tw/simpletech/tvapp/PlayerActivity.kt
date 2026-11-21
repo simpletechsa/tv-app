@@ -130,6 +130,7 @@ class PlayerActivity : Activity() {
     private fun start() {
         ytLookup++                                   // cancels a YouTube lookup still running
         val ch = chans[index]
+        if (!Store.youTubeOn) while (ch.streams.getOrNull(streamIdx)?.isYouTube == true) streamIdx++   // YouTube OFF: skip
         val s = ch.streams.getOrNull(streamIdx)
         if (s == null) {
             stopWeb()
