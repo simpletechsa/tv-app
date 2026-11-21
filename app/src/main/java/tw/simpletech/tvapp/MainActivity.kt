@@ -25,6 +25,7 @@ class MainActivity : Activity() {
 
     private lateinit var list: RecyclerView
     private lateinit var status: TextView
+    private lateinit var spinner: View
     private val adapter = RowAdapter()
     private var group: String? = null      // null = showing groups
     private var groupPos = 0
@@ -47,6 +48,7 @@ class MainActivity : Activity() {
         setContentView(R.layout.activity_main)
         list = findViewById(R.id.list)
         status = findViewById(R.id.status)
+        spinner = findViewById(R.id.spinner)
         list.layoutManager = LinearLayoutManager(this)
         list.adapter = adapter
 
@@ -75,11 +77,13 @@ class MainActivity : Activity() {
     private fun quietUpdate() {
         if (!Updater.checkDue(this) && !Updater.guideDue(this)) return
         thread { Updater.quiet(applicationContext) }
+        spinner.postDelayed({ spin() }, 500)
     }
 
     override fun onResume() {
         super.onResume()
         Updater.onUpdated = { runOnUiThread { redraw() } }
+        spin()                                  // shows the circle if a background update is running
         // favorites may have changed while watching
         redraw()
     }
@@ -281,6 +285,7 @@ class MainActivity : Activity() {
         }
         val first = button(t("🔄 立即檢查", "🔄 Check now")) { refresh() }
         box.addView(first)
+        box.addView(button(t("📅 更新節目表", "📅 Update TV guide")) { refreshGuide() })
         box.addView(button(t("📌 我的清單", "📌 My playlists")) { editPlaylists() })
         box.addView(button(t("🌐 語言：中文 → 切換為 English", "🌐 Language: English → switch to 中文")) {
             Lang.set(this, !Lang.zh); recreate()
@@ -317,24 +322,40 @@ class MainActivity : Activity() {
 
     /** Hold OK on a folder: re-check only that folder. */
     private fun refreshFolder(g: String) {
-        if (busy) return
-        if (Updater.isRunning) { setStatus(Lang.t("🔄 已在更新中…", "🔄 Already updating…")); return }
+        if (busy || Updater.isRunning) { pending = { refreshFolder(g) }; spin(); return }   // runs after the current update
         busy = true
-        setStatus(Lang.pick(g) + Lang.t("：開始更新…", ": updating…"))
+        spin()
         thread {
-            try {
-                Updater.folder(applicationContext, g) { setStatus(Lang.pick(g) + " · " + it) }
-                busy = false
-                runOnUiThread {
-                    redraw(); showDone()
-                    Toast.makeText(this, Lang.pick(g) + Lang.t(" 已更新", " updated"), Toast.LENGTH_SHORT).show()
-                }
-            } catch (e: Exception) {
-                setStatus(Lang.t("❌ 失敗：", "❌ Failed: ") + (e.message ?: e.javaClass.simpleName))
-                busy = false
-            }
+            try { Updater.folder(applicationContext, g) { } } catch (_: Exception) { }
+            busy = false
+            runOnUiThread { redraw() }
         }
     }
+
+    /** Settings: update only the TV guide. */
+    private fun refreshGuide() {
+        if (busy || Updater.isRunning) { pending = { refreshGuide() }; spin(); return }
+        busy = true
+        spin()
+        thread {
+            try { Updater.guide(applicationContext) { } } catch (_: Exception) { }
+            busy = false
+            runOnUiThread { redraw() }
+        }
+    }
+
+    // ------------------------------------------------------------ small spinning circle (top middle)
+    private var pending: (() -> Unit)? = null
+    private val spinCheck = object : Runnable {
+        override fun run() {
+            val working = busy || Updater.isRunning
+            spinner.visibility = if (working) View.VISIBLE else View.GONE
+            if (working) { spinner.postDelayed(this, 1000); return }
+            pending?.let { pending = null; it() }          // a held update waiting for its turn
+        }
+    }
+
+    private fun spin() { spinner.removeCallbacks(spinCheck); spinner.post(spinCheck) }
 
     /** Visible check (first install or the Check & fix button). */
     private fun refresh(force: Boolean = false) {
@@ -352,6 +373,7 @@ class MainActivity : Activity() {
         }
         busy = true
         setStatus(Lang.t("開始…", "Starting…"))
+        spin()
         thread {
             try {
                 Updater.full(applicationContext) { setStatus(it) }
