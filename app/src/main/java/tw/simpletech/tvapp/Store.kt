@@ -137,7 +137,18 @@ object Store {
         return counts.toList().sortedWith(compareBy({ Groups.order(it.first) }, { it.first }))
     }
 
+    /** Search: every channel whose name contains the words (any folder; Adult only for admin). */
+    fun search(q: String): List<Channel> {
+        val words = q.lowercase().split(' ').filter { it.isNotBlank() }
+        if (words.isEmpty()) return emptyList()
+        return channels.filter { c ->
+            shown(c) && (c.group != Groups.ADULT || adminOn) &&
+                words.all { w -> c.name.lowercase().contains(w) || Epg.norm(c.name).contains(Epg.norm(w)) }
+        }.sortedBy { it.name.lowercase() }
+    }
+
     fun inGroup(g: String): List<Channel> {
+        if (g.startsWith(Groups.SEARCH)) return search(g.removePrefix(Groups.SEARCH))
         val list = (if (g == Groups.FAV) channels.filter { isFav(it) && it.group != Groups.ADULT }
                     else channels.filter { it.group == g }).filter { shown(it) }
         return list.sortedWith(compareBy(

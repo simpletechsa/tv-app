@@ -78,6 +78,7 @@ data class Prog(val start: Long, val stop: Long, val title: String)
 
 object Groups {
     const val FAV = "❤️ 我的最愛 Favorites"
+    const val SEARCH = "🔍 "                     // "🔍 words" = search results
     const val TW = "🇹🇼 台灣 Taiwan"
     const val ZA = "🇿🇦 南非 South Africa"
     const val ADULT = "🔒 成人 Adult"
