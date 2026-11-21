@@ -308,7 +308,32 @@ object Builder {
             val (p, other) = ch.streams.partition { pluto.containsMatchIn(it.url) }
             if (p.isNotEmpty() && other.isNotEmpty()) { ch.streams.clear(); ch.streams.addAll(other + p) }
         }
-        return map.values.toMutableList()
+        // Rugby: every link is its own row ("Rugby Pass TV · World Rugby", "… · Pluto"), so you can pick
+        val out = mutableListOf<Channel>()
+        for (ch in map.values) {
+            val links = ch.streams.filter { !it.isYouTube }
+            if (ch.group != Groups.RUGBY || links.size < 2) { out += ch; continue }
+            links.forEachIndexed { i, s ->
+                out += Channel(if (i == 0) ch.key else "${ch.key}#${i + 1}", "${ch.name} · ${source(s.url)}", ch.group, ch.logo,
+                    mutableListOf(s))
+            }
+        }
+        return out
+    }
+
+    /** Short name of where a link comes from. */
+    fun source(url: String): String {
+        val u = url.lowercase()
+        return when {
+            "jmp2.uk/plu-" in u || "pluto" in u -> "Pluto"
+            "world_rugby" in u -> "World Rugby"
+            "wurl.com" in u || "samsung" in u -> "Samsung"
+            "jmp2.uk/rok-" in u || "roku" in u -> "Roku"
+            "jmp2.uk/stvp-" in u -> "Samsung"
+            else -> try {
+                java.net.URI(url).host.removePrefix("www.").split('.').let { if (it.size >= 2) it[it.size - 2] else it[0] }
+            } catch (e: Exception) { "?" }
+        }
     }
 }
 
@@ -365,17 +390,21 @@ object Checker {
     private fun checkOne(ch: Channel, prev: Channel?, now: Long) {
         // try last working link first
         if (prev != null && prev.status != "dead") {
-            prev.streams.firstOrNull()?.let { p ->
+            prev.streams.firstOrNull()?.takeIf { p ->
+                // a rugby row is one link only: never take another row's link
+                " · " !in ch.name || ch.streams.any { it.url == p.url }
+            }?.let { p ->
                 ch.streams.removeAll { it.url == p.url }
                 ch.streams.add(0, p)
             }
         }
         var geo: Stream? = null
-        for (s in ch.streams.toList()) {
+        // real TV links first; official YouTube lives only if none of them works (YouTube has ads)
+        for (s in ch.streams.sortedBy { it.isYouTube }) {
             if (s.isYouTube) {
                 val id = Net.youTubeLive(s.url) ?: continue
                 if (ch.logo.isEmpty()) Net.youTubeLogos[s.url]?.let { ch.logo = it }
-                ch.streams.remove(s); ch.streams.add(0, s.copy(extra = id))
+                ch.streams.remove(s); ch.streams.add(0, s.copy(extra = id, title = Net.youTubeTitles[id]))
                 ch.status = "ok"; ch.lastOk = now; return
             }
             // full test (real video must come back); Taiwan + South Africa use the gentler test
