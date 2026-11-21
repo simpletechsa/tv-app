@@ -77,6 +77,10 @@ object Net {
     /** Channel picture (logo) found on the last YouTube page that was checked, by page URL. */
     val youTubeLogos = java.util.concurrent.ConcurrentHashMap<String, String>()
 
+    /** YouTube pages that say "not available in your country" (page link -> true): needs a VPN. */
+    val youTubeBlocked = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+    private val ytGeo = Regex(""""playabilityStatus":\{"status":"(?:UNPLAYABLE|LOGIN_REQUIRED|ERROR)"[^}]{0,300}?"reason":"[^"]*(?:country|國家|地區|region)""", RegexOption.IGNORE_CASE)
+
     /** Other 24-hour channel lives on the same YouTube channel (page link -> video id + title). */
     val youTubeFeeds = java.util.concurrent.ConcurrentHashMap<String, List<Pair<String, String>>>()
 
@@ -121,6 +125,7 @@ object Net {
     fun youTubeLive(url: String): String? = try {
         val pageUrl = url.removePrefix("yt:")
         val html = page(pageUrl)
+        youTubeBlocked[url] = ytGeo.containsMatchIn(html)
         // the channel's own profile picture = its logo
         ytAvatar.find(html)?.value?.let { a ->
             youTubeLogos[url] = a.replace(Regex("""=s\d+[^/]*$"""), "=s176-c-k-c0x00ffffff-no-rj")
