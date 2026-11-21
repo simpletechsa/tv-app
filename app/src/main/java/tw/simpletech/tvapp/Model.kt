@@ -9,6 +9,7 @@ data class Stream(
     val userAgent: String? = null,
     val geo: Boolean = false,
     val extra: String? = null,      // YouTube: current live video id
+    val title: String? = null,      // YouTube: current live video title (shown in the list)
 ) {
     val isYouTube get() = url.startsWith("yt:")
 }
@@ -42,6 +43,7 @@ class Channel(
                     s.userAgent?.let { put("a", it) }
                     put("g", s.geo)
                     s.extra?.let { put("x", it) }
+                    s.title?.let { put("tt", it) }
                 })
             }
         })
@@ -63,6 +65,7 @@ class Channel(
                         if (s.has("a")) s.getString("a") else null,
                         s.optBoolean("g"),
                         if (s.has("x")) s.getString("x") else null,
+                        if (s.has("tt")) s.getString("tt") else null,
                     )
                 )
             }
@@ -118,3 +121,7 @@ object Groups {
         }
     }
 }
+
+/** What the channel's YouTube live is showing now (when it plays from YouTube), for the list. */
+fun ytNow(ch: Channel): String =
+    ch.streams.firstOrNull()?.takeIf { it.isYouTube }?.title?.let { "🔴 LIVE  $it" } ?: ""

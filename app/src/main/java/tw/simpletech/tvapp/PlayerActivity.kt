@@ -78,6 +78,7 @@ class PlayerActivity : Activity() {
         info = findViewById(R.id.info)
         webBox = findViewById(R.id.webBox)
         YtPool.onFailed = failCallback
+        YtPool.onEnded = endCallback
         overlay = findViewById(R.id.overlay)
         overlayTitle = findViewById(R.id.overlayTitle)
         overlayHint = findViewById(R.id.overlayHint)
@@ -124,7 +125,10 @@ class PlayerActivity : Activity() {
         showInfo()
     }
 
+    private var ytLookup = 0
+
     private fun start() {
+        ytLookup++                                   // cancels a YouTube lookup still running
         val ch = chans[index]
         val s = ch.streams.getOrNull(streamIdx)
         if (s == null) {
@@ -157,20 +161,37 @@ class PlayerActivity : Activity() {
     /** Official YouTube live, played full screen inside the app (no YouTube app needed). */
     private var extOpened = false
 
+    /** Looks up the channel's current live (not the one saved at the daily check, which may have ended). */
     private fun openYouTube(s: Stream) {
         player.stop()
+        val token = ytLookup
+        YtPool.fresh[s.url]?.takeIf { System.currentTimeMillis() - it.second < 10 * 60_000 }?.let {
+            openYouTubeId(s, it.first); return
+        }
+        showInfo(Lang.t("🔎 找最新直播…", "🔎 Finding the current live…"), 3000)
+        Thread {
+            val id = Net.youTubeLive(s.url)
+            runOnUiThread {
+                if (token != ytLookup || isFinishing) return@runOnUiThread
+                if (id != null) YtPool.fresh[s.url] = id to System.currentTimeMillis()
+                openYouTubeId(s, id ?: s.extra)
+            }
+        }.start()
+    }
+
+    private fun openYouTubeId(s: Stream, liveId: String?) {
         val ext = Store.youTubeApp(this)
-        if (ext != null && s.extra != null) {
+        if (ext != null && liveId != null) {
             try {
                 extOpened = true
                 startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
-                    android.net.Uri.parse("https://www.youtube.com/watch?v=${s.extra}")).setPackage(ext)
+                    android.net.Uri.parse("https://www.youtube.com/watch?v=$liveId")).setPackage(ext)
                     .putExtra("force_fullscreen", true)        // open straight in full screen (no chat panel)
                     .putExtra("finish_on_ended", true))        // return to STSA TV when it ends
                 return
             } catch (e: Exception) { extOpened = false }      // app missing: fall back to built-in
         }
-        val id = s.extra ?: run { nextStream(); return }
+        val id = liveId ?: run { nextStream(); return }
         view.visibility = View.GONE
         webBox.visibility = View.VISIBLE
         webPool.forEach { (k, w) -> if (k != id) { w.evaluateJavascript("try{p.pauseVideo()}catch(e){}", null); w.visibility = View.GONE } }
@@ -210,6 +231,8 @@ class PlayerActivity : Activity() {
         w.addJavascriptInterface(object {
             @android.webkit.JavascriptInterface
             fun failed(code: Int) { YtPool.onFailed?.invoke(id) }
+            @android.webkit.JavascriptInterface
+            fun ended() { YtPool.onEnded?.invoke(id) }
         }, "STSA")
         w.setOnTouchListener { _, e -> gestures.onTouchEvent(e); true }
         // YouTube's own player, full screen, no controls/chat; if it refuses to play, try the next link
@@ -218,12 +241,25 @@ class PlayerActivity : Activity() {
             <body><div id="p"></div><script src="https://www.youtube.com/iframe_api"></script><script>
             var p;function onYouTubeIframeAPIReady(){p=new YT.Player('p',{width:'100%',height:'100%',videoId:'$id',
             playerVars:{autoplay:1,controls:0,rel:0,modestbranding:1,iv_load_policy:3,playsinline:1,disablekb:1,fs:0,cc_load_policy:0},
-            events:{onReady:function(e){e.target.playVideo();},onError:function(e){STSA.failed(e.data);}}});}
+            events:{onReady:function(e){e.target.playVideo();},onError:function(e){STSA.failed(e.data);},
+            onStateChange:function(e){if(e.data===0)STSA.ended();}}});}
             </script></body></html>"""
         w.loadDataWithBaseURL("https://simpletechsa.github.io/", html, "text/html", "UTF-8", null)
         webBox.addView(w, android.widget.FrameLayout.LayoutParams(
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT, android.widget.FrameLayout.LayoutParams.MATCH_PARENT))
         return w
+    }
+
+    /** The live ended (show over): find the channel's new live and play it. */
+    private val endCallback: (String) -> Unit = { id ->
+        runOnUiThread {
+            if (webCurrent == id) {
+                YtPool.fresh.keys.filter { YtPool.fresh[it]?.first == id }.forEach { YtPool.fresh.remove(it) }
+                webPool.remove(id)?.let { (it.parent as? android.view.ViewGroup)?.removeView(it); it.destroy() }
+                webCurrent = null
+                start()
+            }
+        }
     }
 
     private val failCallback: (String) -> Unit = { id ->
@@ -336,7 +372,7 @@ class PlayerActivity : Activity() {
         val now = System.currentTimeMillis()
         overlayAdapter.set(list.mapIndexed { i, ch ->
             val prog = Store.guide(ch, 1).firstOrNull()?.takeIf { it.start <= now }
-                ?.let { "▶ ${hm.format(Date(it.start))} ${it.title}" } ?: ch.label.trim()
+                ?.let { "▶ ${hm.format(Date(it.start))} ${it.title}" } ?: ytNow(ch).ifEmpty { ch.label.trim() }
             val playing = g == group && i == index
             OverlayAdapter.Item(
                 "${if (playing) "🔊 " else ""}${if (Store.showNumbers(this)) "${i + 1}. " else ""}${Lang.pick(ch.name)}",
@@ -443,6 +479,7 @@ class PlayerActivity : Activity() {
         // keep watched YouTube channels for this app session (no repeat ads); just detach them
         pauseAllWeb()
         if (YtPool.onFailed === failCallback) YtPool.onFailed = null
+        if (YtPool.onEnded === endCallback) YtPool.onEnded = null
         webBox.removeAllViews()
         webPool.values.forEach { (it.context as? android.content.MutableContextWrapper)?.baseContext = applicationContext }
         super.onDestroy()

@@ -118,7 +118,7 @@ class MainActivity : Activity() {
             val fav = g != Groups.FAV && Store.isFav(ch)      // inside Favorites: no marker
             val prog = Store.guide(ch, 1).firstOrNull()
                 ?.takeIf { it.start <= System.currentTimeMillis() }
-                ?.let { "▶ ${now.format(Date(it.start))} ${it.title}" } ?: ""
+                ?.let { "▶ ${now.format(Date(it.start))} ${it.title}" } ?: ytNow(ch)
             Row("${if (numbers) "${i + 1}. " else ""}${Lang.pick(ch.name)}${ch.label}", prog, Store.logoFor(ch),
                 fav = fav, onLong = { pos -> toggleFav(ch, pos) }) { _, _ ->
                 startActivity(Intent(this, PlayerActivity::class.java).putExtra("group", g).putExtra("index", i))

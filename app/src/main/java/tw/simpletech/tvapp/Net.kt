@@ -77,16 +77,51 @@ object Net {
     /** Channel picture (logo) found on the last YouTube page that was checked, by page URL. */
     val youTubeLogos = java.util.concurrent.ConcurrentHashMap<String, String>()
 
-    /** Official YouTube live: returns the current live video id, or null if not live now. */
+    /** Live video titles found during lookups, by video id. */
+    val youTubeTitles = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    private val ytTitle = Regex("""<meta name="title" content="([^"]*)">""")
+    private val ytVideo = Regex(""""videoRenderer":\{"videoId":"([\w-]{11})"""")
+    private val ytRunTitle = Regex(""""title":\{"runs":\[\{"text":"((?:[^"\\]|\\.)*)"""")
+    private val ytLiveBadge = Regex("""BADGE_STYLE_TYPE_LIVE_NOW|"style":"LIVE"""")
+    private val is24h = Regex("""24\s*(小時|h|hr|hour|H)|24/7|二十四小時|全天""", RegexOption.IGNORE_CASE)
+
+    private fun page(u: String): String = open(u, Stream(u, userAgent = DESKTOP_UA), 15000, 30000) { _, _, input, _ ->
+        input?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
+    }
+
+    private fun unescape(t: String) = t.replace(Regex("""\\u([0-9a-fA-F]{4})""")) { it.groupValues[1].toInt(16).toChar().toString() }
+        .replace("\\\"", "\"").replace("\\/", "/").replace("&amp;", "&").replace("&quot;", "\"").replace("&#39;", "'")
+
+    /**
+     * Official YouTube live: returns the current live video id, or null if not live now.
+     * News channels run several lives (talk shows, rallies); the 24-hour news live is preferred.
+     */
     fun youTubeLive(url: String): String? = try {
-        val html = open(url.removePrefix("yt:"), Stream(url, userAgent = DESKTOP_UA), 15000, 30000) { _, _, input, _ ->
-            input?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
-        }
+        val pageUrl = url.removePrefix("yt:")
+        val html = page(pageUrl)
         // the channel's own profile picture = its logo
         ytAvatar.find(html)?.value?.let { a ->
             youTubeLogos[url] = a.replace(Regex("""=s\d+[^/]*$"""), "=s176-c-k-c0x00ffffff-no-rj")
         }
-        if (ytLiveNow.containsMatchIn(html)) ytCanonical.find(html)?.groupValues?.get(1) else null
+        var id = if (ytLiveNow.containsMatchIn(html)) ytCanonical.find(html)?.groupValues?.get(1) else null
+        if (id != null) ytTitle.find(html)?.groupValues?.get(1)?.let { youTubeTitles[id!!] = unescape(it) }
+        // Look at all lives on the channel; take the 24-hour one if there is one
+        if (pageUrl.endsWith("/live") && (id == null || youTubeTitles[id]?.let { is24h.containsMatchIn(it) } != true)) {
+            try {
+                val streams = page(pageUrl.removeSuffix("/live") + "/streams")
+                val parts = streams.split("\"videoRenderer\":{").drop(1)
+                for (part in parts) {
+                    val chunk = "\"videoRenderer\":{" + part.take(6000)
+                    val vid = ytVideo.find(chunk)?.groupValues?.get(1) ?: continue
+                    if (!ytLiveBadge.containsMatchIn(chunk)) continue
+                    val t = unescape(ytRunTitle.find(chunk)?.groupValues?.get(1) ?: "")
+                    youTubeTitles[vid] = t
+                    if (is24h.containsMatchIn(t)) { id = vid; break }
+                }
+            } catch (_: Exception) { /* keep the /live result */ }
+        }
+        id
     } catch (e: Exception) {
         null
     }

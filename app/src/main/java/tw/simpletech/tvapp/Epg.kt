@@ -86,8 +86,8 @@ object Epg {
 
     private fun aliases(ch: Channel): Set<String> {
         val out = HashSet<String>()
-        out += norm(ch.name)
-        out += norm(ch.key.removePrefix("my:"))
+        out += norm(ch.name.substringBefore(" · "))                  // rugby rows: "Rugby Pass TV · Pluto"
+        out += norm(ch.key.removePrefix("my:").substringBefore('#'))
         // "台視新聞 TTV News" -> also "台視新聞" and "TTV News"
         val parts = ch.name.split(' ', limit = 2)
         if (parts.size == 2 && parts[0].any { it.code > 0x2E80 }) { out += norm(parts[0]); out += norm(parts[1]) }
