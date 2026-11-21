@@ -303,7 +303,7 @@ class PlayerActivity : Activity() {
         full(webBox)
     }
 
-: (String) -> Unit = { id -> runOnUiThread { if (splitB == id) endSplit() } }
+    private val startedCallback: (String) -> Unit = { id -> runOnUiThread { if (splitB == id) endSplit() } }
 
     private val failCallback: (String) -> Unit = { id ->
         runOnUiThread { if (webCurrent == id && webBox.visibility == View.VISIBLE) nextStream() }
