@@ -1,0 +1,128 @@
+#EXTM3U
+# STSA TV — Taiwan channels found / 台灣頻道清單
+# Sources 來源: iptv-org (countries/tw), Free-TV (Taiwan), official YouTube lives 官方 YouTube 直播
+# Not included 不含: religious channels 宗教頻道, 中天. Links can stop working any time 連結隨時可能失效.
+# Updated 更新: 2026-11-21
+
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="BeautifulLifeTV.tw@SD",Beautiful Life TV (720p)
+https://5ddce30eb4b55.streamlock.net/bltvhd/bltv1/playlist.m3u8
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="CTS.tw@SD",CTS (HUA-CHI CTS) (1080p)
+rtmp://59.124.75.138:1935/sat/tv111
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="CTSNews.tw@SD",CTS News (華視新聞資訊) [Geo-blocked]
+http://seb.sason.top/sc/hsxw_fhd.m3u8
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="DaAi1.tw@SD",DaAi1 (大愛1) (720p)
+https://pulltv1.wanfudaluye.com/live/tv1.m3u8
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="DaAi2.tw@SD",DaAi 2 (1080p)
+http://nmk.ioapk.com:5050/4gtv-live106/index.m3u8
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="DaAi2.tw@SD",DaAi2 (大愛2) (720p)
+https://pulltv2.wanfudaluye.com/live/tv2.m3u8
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="DaliTV.tw@SD",Dali TV (大立電視台) (720p)
+http://www.dalitv.com.tw:4568/live/dali/index.m3u8
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="DiscoveryAsiaTaiwan.tw@SD",Discovery Asia Taiwan (1080p)
+http://125.227.210.55:1004/VideoInput/play.ts
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="EBCFinancialNews.tw@SD",EBC Financial News (東森財經新聞台) (1080p) [Not 24/7]
+http://seb.sason.top/sc/dscjxw_fhd.m3u8
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="EBCForeignMovie.tw@SD",EBC Foreign Movie
+http://111.59.139.85:11888/tsfile/live/1217_1.m3u8?key=txiptv
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="EBCNews.tw@SD",EBC News (東森新聞台) (1080p) [Not 24/7]
+http://seb.sason.top/sc/dsxw_fhd.m3u8
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="FTV.tw@SD",FTV (民視) (720p) [Not 24/7]
+http://seb.sason.top/ptv/ftv.php?id=ms
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="FTVOne.tw@SD",FTV One (民視第一台) (720p) [Not 24/7]
+http://seb.sason.top/ptv/ftv.php?id=dy
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="FTVTaiwan.tw@SD",FTV Taiwan (民視台灣台) (720p) [Not 24/7]
+http://seb.sason.top/ptv/ftv.php?id=tw
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="IndigenousTV.tw@SD",Indigenous TV (720p)
+http://streamipcf.akamaized.net/live/_definst_/smil:liveabr.smil/playlist.m3u8
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="MOMOTV.tw@SD",MOMO TV (1080p)
+http://nmk.ioapk.com:5050/4gtv-live107/index.m3u8
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="PTS3.tw@SD",PTS 3
+http://111.59.139.85:11888/tsfile/live/1222_1.m3u8?key=txiptv
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="SETNews.tw@SD",SET News (三立新聞) (1080p) [Geo-blocked]
+http://seb.sason.top/sc/sllive_fhd.m3u8
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="SJTV.tw@SD",SJTV
+http://111.59.139.85:11888/tsfile/live/1220_1.m3u8?key=txiptv
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="TaiwanIndigenousTV.tw@SD",Taiwan Indigenous TV (720p)
+https://streamipcfapp.akamaized.net/live/_definst_/live_720/key_b1500.m3u8
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="TaiwanPlusTV.tw@SD",Taiwan Plus TV (1080p)
+https://bcovlive-a.akamaihd.net/rce33d845cb9e42dfa302c7ac345f7858/ap-northeast-1/6282251407001/playlist.m3u8
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="TVBSAsia.tw@SD",TVBS Asia (1080p)
+http://38.64.72.148/hls/modn/list/4005/playlist.m3u8
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="TVBSNews.tw@SD",TVBS News (TVBS新聞台) [Geo-blocked]
+http://seb.sason.top/sc/tvbsxw_fhd.m3u8
+#EXTINF:-1 group-title="台灣 Taiwan (iptv-org)" tvg-id="TTV.tw@SD",台视 (720p)
+http://162.19.247.76:22222/live/taishi/index.m3u8
+#EXTINF:-1 group-title="台灣 Taiwan (Free-TV)" tvg-name="CTV (中視)" tvg-logo="https://upload.wikimedia.org/wikipedia/zh/2/22/CTV_text.png" tvg-id="CTV.tw" tvg-chno="1" tvg-country="TW",CTV (中視) Ⓨ
+https://www.youtube.com/c/twctvnews/live
+#EXTINF:-1 group-title="台灣 Taiwan (Free-TV)" tvg-name="CTV News Channel (中視新聞台)" tvg-logo="https://upload.wikimedia.org/wikipedia/zh/6/67/CTV_News_logo.png" tvg-id="CTVNewsChannel.tw" tvg-chno="2" tvg-country="TW",CTV News Channel (中視新聞台) Ⓨ
+https://www.youtube.com/watch?v=TCnaIE_SAtM
+#EXTINF:-1 group-title="台灣 Taiwan (Free-TV)" tvg-name="PTS (公視主頻)" tvg-logo="https://upload.wikimedia.org/wikipedia/zh/thumb/f/fb/PTS_Taiwan.svg/500px-PTS_Taiwan.svg.png" tvg-id="PTS.tw" tvg-chno="5" tvg-country="TW",PTS (公視主頻) Ⓨ
+https://www.youtube.com/channel/UCXgIO9jJVsX5_2ideiSkfvA/live
+#EXTINF:-1 group-title="台灣 Taiwan (Free-TV)" tvg-name="PTS Taigi (公視台語台) Ⓨ" tvg-logo="https://upload.wikimedia.org/wikipedia/zh/thumb/8/8a/PTS_Taigi.svg/500px-PTS_Taigi.svg.png" tvg-id="PTSTaigi.tw" tvg-chno="6" tvg-country="TW",PTS Taigi (公視台語台) Ⓨ Ⓖ
+https://www.youtube.com/watch?v=6KlRR_DGhmI
+#EXTINF:-1 group-title="台灣 Taiwan (Free-TV)" tvg-name="TaiwanPlus" tvg-logo="https://i.imgur.com/SfcZyqm.png" tvg-id="TaiwanPlus.tv" tvg-chno="7" tvg-country="TW",TaiwanPlus Ⓨ
+https://www.youtube.com/watch?v=dZp87qnWelE
+#EXTINF:-1 group-title="台灣 Taiwan (Free-TV)" tvg-name="民視無線台" tvg-logo="https://upload.wikimedia.org/wikipedia/zh/thumb/4/49/FTV_HD_Logo.svg/500px-FTV_HD_Logo.svg.png" tvg-id="FTV.tw" tvg-chno="8" tvg-country="TW",民視無線台
+http://seb.sason.top/ptv/ftv.php?id=ms
+#EXTINF:-1 group-title="台灣 Taiwan (Free-TV)" tvg-name="FTV One (民視第一台)" tvg-logo="https://i.imgur.com/HBT2o0I.png" tvg-id="FTVOne.tw" tvg-chno="9" tvg-country="TW",FTV One (民視第一台)
+http://seb.sason.top/ptv/ftv.php?id=dy
+#EXTINF:-1 group-title="台灣 Taiwan (Free-TV)" tvg-name="FTV News (民視新聞台)" tvg-logo="https://i.imgur.com/j9Gebr5.png" tvg-id="FTVNews.tw" tvg-chno="10" tvg-country="TW",FTV News (民視新聞台) Ⓨ
+https://www.youtube.com/watch?v=ylYJSBUgaMA
+#EXTINF:-1 group-title="台灣 Taiwan (Free-TV)" tvg-name="FTV Taiwan (民視台灣台)" tvg-logo="https://i.imgur.com/p108I5g.png" tvg-id="FTVTaiwan.tw" tvg-chno="11" tvg-country="TW",FTV Taiwan (民視台灣台)
+http://seb.sason.top/ptv/ftv.php?id=tw
+#EXTINF:-1 group-title="台灣 Taiwan (Free-TV)" tvg-name="TTV Main Channel (臺灣電視台) Ⓨ" tvg-logo="https://upload.wikimedia.org/wikipedia/zh/4/43/TTV_Home_Channel_with_HD_2016.png" tvg-id="TTV.tw" tvg-chno="15" tvg-country="TW",TTV Main Channel (臺灣電視台) Ⓨ Ⓖ
+https://www.youtube.com/watch?v=uDqQo8a7Xmk
+#EXTINF:-1 group-title="台灣 Taiwan (Free-TV)" tvg-name="TTV News (台視新聞台)" tvg-logo="https://upload.wikimedia.org/wikipedia/zh/3/3f/TTV_News_Channel_with_HD_2016.png" tvg-id="TTVNews.tw" tvg-chno="16" tvg-country="TW",TTV News (台視新聞台) Ⓨ
+https://www.youtube.com/@TTV_NEWS/live
+#EXTINF:-1 group-title="台灣 Taiwan (Free-TV)" tvg-name="Congress Channel 1" tvg-logo="https://i.imgur.com/0dVlvsz.png" tvg-id="CongressChannel1.tw" tvg-chno="22" tvg-country="TW",Congress Channel 1 Ⓨ
+https://www.youtube.com/watch?v=x6XVbD7Ln78
+#EXTINF:-1 group-title="台灣 Taiwan (Free-TV)" tvg-name="Congress Channel 2" tvg-logo="https://i.imgur.com/htGr996.png" tvg-id="CongressChannel2.tw" tvg-chno="23" tvg-country="TW",Congress Channel 2 Ⓨ
+https://www.youtube.com/watch?v=Lj8OWF6nzcg
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",年代新聞 ERA News
+https://www.youtube.com/@eranewsnetwork/live
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",非凡新聞 USTV News
+https://www.youtube.com/@ustvnews/live
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",台視財經 TTV Finance
+https://www.youtube.com/@ttvfinance/live
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",公視台語台 PTS Taigi
+https://www.youtube.com/@PTSTaigi/live
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",三立財經 SET Finance
+https://www.youtube.com/@setmoney/live
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",TaiwanPlus
+https://www.youtube.com/@TaiwanPlusNews/live
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",國會頻道1 Parliament 1
+https://www.youtube.com/@lytv1/live
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",台視新聞 TTV News
+https://www.youtube.com/c/twlivenews/live
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",中視新聞 CTV News
+https://www.youtube.com/channel/UCmH4q-YjeazayYCVHHkGAMA/live
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",華視新聞 CTS News
+https://www.youtube.com/@CtsTw/live
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",民視新聞 FTV News
+https://www.youtube.com/@FTV_News/live
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",公視 PTS
+https://www.youtube.com/@PNNPTS/live
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",客家電視 Hakka TV
+https://www.youtube.com/@HakkaTV/live
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",原住民族電視台 TITV
+https://www.youtube.com/@TITV/live
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",大愛一台 DaAi 1
+https://www.youtube.com/watch?v=MIqUplvSRWA
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",大愛二台 DaAi 2
+https://www.youtube.com/watch?v=OKvWtVoDR8I
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",三立新聞 SET News
+https://www.youtube.com/watch?v=oZdzzvxTfUY
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",三立iNEWS SET iNews
+https://www.youtube.com/watch?v=CKjSm5ZeehE
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",鏡新聞 Mirror News
+https://www.youtube.com/watch?v=5n0y6b0Q25o
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",寰宇新聞 Global News
+https://www.youtube.com/watch?v=6IquAgfvYmc
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",寰宇新聞台灣 Global News Taiwan
+https://www.youtube.com/watch?v=w87VGpgd90U
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",TVBS新聞 TVBS News
+https://www.youtube.com/@TVBSNEWS01/live
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",東森新聞 EBC News
+https://www.youtube.com/watch?v=LuQ4S-i5zoE
+#EXTINF:-1 group-title="YouTube 官方直播 Official lives",東森財經 EBC Finance
+https://www.youtube.com/watch?v=WHEPzbFA3hw
