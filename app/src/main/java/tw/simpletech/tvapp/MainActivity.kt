@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.text.InputType
 import android.view.LayoutInflater
 import android.view.View
+import android.view.WindowManager
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.ImageView
@@ -62,6 +63,7 @@ class MainActivity : Activity() {
             text = txt
             setOnClickListener { settings() }
         }   // settings only from the title
+        findViewById<View>(R.id.searchBtn).setOnClickListener { askSearch() }
 
         Lang.init(this)
         Store.load(this)
@@ -190,6 +192,34 @@ class MainActivity : Activity() {
             }
             if (changed) runOnUiThread { if (group == g && !isFinishing) showChannels(g, keepPos = true) }
         }.start()
+    }
+
+    /** 🔍 Type part of a name (中文 or English); results open like a folder. */
+    private fun askSearch() {
+        val input = EditText(this).apply {
+            hint = Lang.t("頻道名稱，例如 台視、BBC", "Channel name, e.g. TTV, BBC")
+            isSingleLine = true
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+        }
+        val d = AlertDialog.Builder(this)
+            .setTitle(Lang.t("🔍 搜尋頻道", "🔍 Search channels"))
+            .setView(input)
+            .setPositiveButton(Lang.t("搜尋", "Search")) { _, _ -> runSearch(input.text.toString()) }
+            .setNegativeButton(Lang.t("取消", "Cancel"), null)
+            .create()
+        input.setOnEditorActionListener { _, _, _ -> d.dismiss(); runSearch(input.text.toString()); true }
+        d.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+        d.show()
+        input.requestFocus()
+    }
+
+    private fun runSearch(q: String) {
+        val t = q.trim()
+        if (t.isEmpty()) return
+        if (Store.search(t).isEmpty()) {
+            Toast.makeText(this, Lang.t("找不到頻道", "No channels found"), Toast.LENGTH_SHORT).show(); return
+        }
+        showChannels(Groups.SEARCH + t)
     }
 
     /** Top bar: STSA TV on the main page, STSA TV › folder inside a folder. */
